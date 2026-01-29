@@ -1,0 +1,64 @@
+{
+  "comment": "Material-Field Governance Timing Configuration",
+  "elastic_modulus": {
+    "mode": "multiplicative",
+    "sigma": 0.5,
+    "comment": "Modes: 'cosine' (angular only), 'multiplicative' (angle×proximity), 'rbf' (proximity only)"
+  },
+  "constraint_pressure": {
+    "lambda_min": 0.40,
+    "lambda_max": 1.20,
+    "comment": "λ_max can exceed 1.0 for aggressive crystallization"
+  },
+  "phase_transitions": {
+    "nucleation_threshold": 0.40,
+    "quenching_threshold": 0.80,
+    "comment": "Phase boundaries as fraction of total time (0.0 to 1.0)"
+  },
+  "inference": {
+    "total_steps": 8,
+    "comment": "Number of inference steps for phase progression"
+  },
+  "presets": {
+    "conservative": {
+      "lambda_min": 0.25,
+      "lambda_max": 0.90,
+      "nucleation_threshold": 0.50,
+      "quenching_threshold": 0.90,
+      "total_steps": 12,
+      "elastic_modulus_mode": "multiplicative",
+      "elastic_modulus_sigma": 0.3,
+      "comment": "Tight binding for verified facts"
+    },
+    "balanced": {
+      "lambda_min": 0.40,
+      "lambda_max": 1.20,
+      "nucleation_threshold": 0.40,
+      "quenching_threshold": 0.80,
+      "total_steps": 8,
+      "elastic_modulus_mode": "multiplicative",
+      "elastic_modulus_sigma": 0.5,
+      "comment": "Balanced alignment and proximity"
+    },
+    "aggressive": {
+      "lambda_min": 0.50,
+      "lambda_max": 1.50,
+      "nucleation_threshold": 0.30,
+      "quenching_threshold": 0.70,
+      "total_steps": 6,
+      "elastic_modulus_mode": "multiplicative",
+      "elastic_modulus_sigma": 0.8,
+      "comment": "Loose binding for creative/exploratory"
+    },
+    "mission_critical": {
+      "lambda_min": 0.60,
+      "lambda_max": 2.00,
+      "nucleation_threshold": 0.25,
+      "quenching_threshold": 0.65,
+      "total_steps": 8,
+      "elastic_modulus_mode": "multiplicative",
+      "elastic_modulus_sigma": 0.25,
+      "comment": "Maximum exclusion pressure + very tight binding for safety-critical systems"
+    }
+  }
+}
