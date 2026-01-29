@@ -281,7 +281,7 @@ This is a **reference experiment**, not an open development project.
 
 Source-available for research and personal use. Commercial deployment requires license.
 
-See `LICENSE` for details. Contact: ryan@rswlabs.org
+See `LICENSE` for details. Contact: info@verhash.com
 
 ## Patent Notice
 
