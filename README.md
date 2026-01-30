@@ -69,6 +69,16 @@ Sustained pressure. Verifies long-term stability under continued constraints.
 
 Phase boundaries, pressure values, and step counts are fixed by configuration and included in the provenance hash.
 
+
+λ(t)
+│        ┌─────────────── Crystallization ───────────────┐
+│      ┌─┘
+│    ┌─┘   Quenching
+│  ┌─┘
+│┌─┘ Nucleation
+└─────────────────────────────────────────────────────────── t
+
+
 ---
 
 ## Elastic Modulus and Stress Accumulation
