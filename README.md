@@ -89,7 +89,7 @@ This is a reference experiment, not an open development project. The code is int
 Source-available for research and personal use. Commercial deployment requires a separate license. Concepts demonstrated are covered by a pending patent application.
 
 *An invitation to treat inference as mechanics rather than chance.*
-
+https://huggingface.co/spaces/RumleyRum/Deterministic-Governance-Mechanism
 ```
 ::contentReference[oaicite:0]{index=0}
 ```
