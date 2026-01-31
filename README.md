@@ -3,6 +3,9 @@
 
 A reference implementation of deterministic exclusion: a governance engine where decisions are produced by a hard mechanical threshold, not probabilistic ranking or sampling. Given identical inputs, configuration, and runtime substrate, the engine produces bit-identical outputs. This repository is not a policy proposal or moderation system; it is a mechanism, a minimal and inspectable experiment showing that exclusion decisions can be causal, replayable, and mechanically auditable.
 
+
+https://huggingface.co/spaces/RumleyRum/Deterministic-Governance-Mechanism
+
 ## Overview
 
 The system models candidates as stateful objects subject to deterministic constraint pressure over time. Each candidate accumulates stress, and exclusion occurs only when accumulated stress exceeds a fixed yield threshold. Once excluded, a candidate cannot re-enter; history is part of the state. There is no randomness, temperature, ranking, sampling, or learned scoring. The engine behaves like a material system under load: given the same initial conditions and pressure schedule, the same fractures occur every time.
@@ -89,7 +92,7 @@ This is a reference experiment, not an open development project. The code is int
 Source-available for research and personal use. Commercial deployment requires a separate license. Concepts demonstrated are covered by a pending patent application.
 
 *An invitation to treat inference as mechanics rather than chance.*
-https://huggingface.co/spaces/RumleyRum/Deterministic-Governance-Mechanism
+
 ```
 ::contentReference[oaicite:0]{index=0}
 ```
