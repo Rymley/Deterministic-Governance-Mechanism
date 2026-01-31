@@ -1,0 +1,113 @@
+# Research and Personal Use License
+
+**Material-Field Governance Reference Implementation**  
+Copyright (c) 2026 Ryan S. Walters / Verhash LLC
+
+## Grant of Rights
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, modify, and study the Software for **non-commercial purposes only**, subject to the following conditions:
+
+### Permitted Uses
+
+✅ **Research and Academic Use**
+- Study the code and underlying algorithms
+- Modify for research experiments
+- Publish academic papers citing this work
+- Use in educational settings (courses, workshops)
+
+✅ **Personal Use**
+- Run for personal learning and experimentation
+- Modify for individual projects
+- Share results and findings publicly
+
+✅ **Open Science**
+- Fork and improve the implementation
+- Publish modified versions with attribution
+- Contribute bug reports and issues
+- Participate in technical discussions
+
+### Prohibited Uses
+
+❌ **Commercial Deployment**
+- Integration into commercial products or services
+- Use in production systems serving customers
+- Deployment for profit or commercial advantage
+- Providing as a paid service (SaaS, API, etc.)
+
+❌ **Redistribution for Profit**
+- Selling copies or access to the Software
+- Bundling with commercial products
+- Sublicensing for commercial purposes
+
+## Conditions
+
+1. **Attribution Required**
+   - Retain this license notice in all copies
+   - Credit original author (Ryan S. Walters / Verhash LLC)
+   - Cite patent application when publishing research
+
+2. **Patent Notice**
+   - This software demonstrates concepts covered by pending patent applications
+   - Patent priority date: January 25, 2026
+   - Title: "Deterministic Material-Field Governance for Computational Systems"
+   - Applicant: Verhash LLC
+
+3. **No Warranty**
+   - THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+   - Use at your own risk
+   - No guarantee of fitness for any particular purpose
+
+## Commercial Licensing
+
+For commercial use, production deployment, or integration into commercial products:
+
+**Contact:** ryan@rswlabs.org  
+**Organization:** Verhash LLC  
+**Address:** 9343 Klusman Ave, Rancho Cucamonga, CA 91730
+
+We offer commercial licenses for:
+- Enterprise deployment
+- Integration into products
+- Production use in safety-critical systems
+- Custom development and support
+
+## Definitions
+
+**"Non-commercial"** means:
+- Not primarily intended for or directed toward commercial advantage
+- Not involving monetary compensation
+- Research, educational, or personal purposes
+
+**"Commercial"** means:
+- Used in a business or profit-making context
+- Deployed to serve paying customers
+- Integrated into products sold for profit
+- Any use generating revenue
+
+## Why This License?
+
+This software is a **reference implementation** of novel research. The goal is to:
+
+1. **Enable scrutiny** - Let researchers verify and challenge the claims
+2. **Accelerate research** - Provide working code to build upon
+3. **Support education** - Help students learn alternative AI approaches
+4. **Protect innovation** - Maintain rights for commercial deployment
+
+We want the research community to have full access while preserving the ability to support commercial development through proper licensing.
+
+## Questions?
+
+If you're unsure whether your use case is permitted:
+
+- **Academic research?** → Yes, permitted
+- **Personal learning project?** → Yes, permitted
+- **Startup product?** → No, requires commercial license
+- **Company internal R&D?** → Contact us to discuss
+- **Open source project?** → Yes, if non-commercial
+- **Publishing modifications?** → Yes, with attribution
+
+---
+
+**Verhash LLC** supports development and research in deterministic systems.
+
+Last updated: January 27, 2026
