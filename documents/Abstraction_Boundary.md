@@ -158,4 +158,4 @@ The goal is not persuasion, but **formal clarity**.
 
 Mathematics does not negotiate.
 ```
-
+---
