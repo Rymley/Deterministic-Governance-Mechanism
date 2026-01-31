@@ -167,9 +167,6 @@ if st.sidebar.button("Run Deterministic Exclusion Demo", type="primary"):
 # Main Content Area
 # ============================================================================
 
-# ============================================================================
-# Main Content Area
-# ============================================================================
 
 # Create tabs
 tab1, tab2, tab3 = st.tabs(["Mechanism Demo", "LLM Guardrail", "Live LLM Testing"])
