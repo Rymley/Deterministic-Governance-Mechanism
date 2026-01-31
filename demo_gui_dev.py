@@ -485,346 +485,359 @@ with tab2:
                 st.json(numbers_view)
 
 # ----------------------------------------------------------------------------
-# TAB 3: Live LLM Testing (New)
+# TAB 3: Universal LLM Testing
 # ----------------------------------------------------------------------------
 with tab3:
-    st.header("Live LLM Testing")
+    st.header("Universal LLM Testing")
     st.markdown("""
-    Test real LLM APIs and see how the Deterministic Guardrail scores their responses.
-    Supports OpenAI, Anthropic, Google, and other providers.
+    **Live API Testing** - Test any LLM with the Deterministic Guardrail in real-time.
+    
+    Supports: OpenAI, Anthropic, Google Gemini, local models (Ollama, llama.cpp, vLLM), and any OpenAI-compatible API.
     """)
     
     # API Configuration
-    st.subheader("1. API Configuration")
+    st.subheader("1. LLM API Configuration")
+    
     col_api1, col_api2 = st.columns(2)
     
     with col_api1:
-        api_provider = st.selectbox(
-            "LLM Provider",
-            options=["OpenAI", "Anthropic", "Google (Gemini)", "Custom (OpenAI-compatible)"],
-            help="Select your LLM provider"
+        api_preset = st.selectbox(
+            "Provider Preset",
+            options=["OpenAI", "Anthropic (Claude)", "Google (Gemini)", "Local (Ollama)", "Local (llama.cpp)", "Custom OpenAI-compatible"],
+            help="Select a preset or use custom for any OpenAI-compatible endpoint"
         )
         
-        api_key = st.text_input(
-            "API Key",
-            type="password",
-            help="Your API key will not be stored",
-            placeholder="sk-..."
+        # Set defaults based on preset
+        if api_preset == "OpenAI":
+            default_base_url = "https://api.openai.com/v1"
+            default_model = "gpt-4o-mini"
+            needs_key = True
+        elif api_preset == "Anthropic (Claude)":
+            default_base_url = "https://api.anthropic.com/v1"
+            default_model = "claude-3-5-sonnet-20241022"
+            needs_key = True
+        elif api_preset == "Google (Gemini)":
+            default_base_url = "https://generativelanguage.googleapis.com/v1beta"
+            default_model = "gemini-2.0-flash-exp"
+            needs_key = True
+        elif api_preset == "Local (Ollama)":
+            default_base_url = "http://localhost:11434/v1"
+            default_model = "llama3.1"
+            needs_key = False
+        elif api_preset == "Local (llama.cpp)":
+            default_base_url = "http://localhost:8080/v1"
+            default_model = "local-model"
+            needs_key = False
+        else:
+            default_base_url = "https://api.openai.com/v1"
+            default_model = "gpt-4o-mini"
+            needs_key = True
+        
+        api_base_url = st.text_input(
+            "Base URL",
+            value=default_base_url,
+            help="API endpoint base URL"
         )
     
     with col_api2:
-        if api_provider == "OpenAI":
-            model_name = st.selectbox(
-                "Model",
-                options=["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-                index=1
-            )
-        elif api_provider == "Anthropic":
-            model_name = st.selectbox(
-                "Model",
-                options=["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
-                index=0
-            )
-        elif api_provider == "Google (Gemini)":
-            model_name = st.selectbox(
-                "Model",
-                options=["gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash"],
-                index=0
-            )
-        else:
-            model_name = st.text_input("Model Name", value="gpt-4o-mini")
+        api_key = st.text_input(
+            "API Key" + (" (optional for local)" if not needs_key else ""),
+            type="password",
+            help="Your API key (not required for local models)",
+            placeholder="sk-..." if needs_key else "not needed for local models"
+        )
         
+        model_name = st.text_input(
+            "Model Name",
+            value=default_model,
+            help="Model identifier"
+        )
+    
+    col_temp, col_num = st.columns(2)
+    with col_temp:
         temperature = st.slider("Temperature", 0.0, 2.0, 0.7, 0.1, help="Higher = more creative")
+    with col_num:
+        num_responses = st.number_input("Number of Responses", min_value=1, max_value=10, value=3, help="Generate multiple responses for comparison")
     
     # Substrate Configuration
     st.subheader("2. Verified Substrate (Ground Truth)")
+    st.markdown("Enter verified facts that define what is correct. One per line.")
     substrate_input_llm = st.text_area(
-        "Enter verified facts (one per line)",
+        "Substrate Facts",
         value="The Eiffel Tower is in Paris\nWater boils at 100°C at sea level\nPython is a programming language",
-        height=150,
+        height=120,
         key="llm_test_substrate"
     )
     
     # Prompt Configuration
     st.subheader("3. Prompt Configuration")
-    col_prompt1, col_prompt2 = st.columns([2, 1])
+    col_prompt1, col_prompt2 = st.columns([3, 1])
     
     with col_prompt1:
         user_prompt = st.text_area(
             "User Prompt",
-            value="Tell me three facts about the topics mentioned in the context.",
+            value="Tell me a fact about one of the topics mentioned above.",
             height=100,
             help="The prompt sent to the LLM"
         )
     
     with col_prompt2:
-        num_responses = st.number_input(
-            "Number of Responses",
-            min_value=1,
-            max_value=10,
-            value=3,
-            help="Generate multiple responses for scoring"
-        )
-        
-        use_system_prompt = st.checkbox("Use System Prompt", value=True)
+        use_system_prompt = st.checkbox("Use System Prompt", value=False)
     
     if use_system_prompt:
         system_prompt = st.text_area(
-            "System Prompt",
+            "System Prompt (optional)",
             value="You are a helpful assistant. Provide accurate, factual information.",
-            height=80
+            height=100
         )
     else:
         system_prompt = None
     
     # Run Button
-    if st.button("Test LLM with Guardrail", type="primary"):
-        if not api_key:
-            st.error("Please provide an API key")
+    if st.button("🚀 Generate & Test Responses", type="primary"):
+        # Parse substrate
+        substrate_list = [line.strip() for line in substrate_input_llm.split('\n') if line.strip()]
+        
+        if not substrate_list:
+            st.error("⚠️ Please provide substrate facts")
+        elif not user_prompt:
+            st.error("⚠️ Please provide a user prompt")
         else:
-            # Parse substrate
-            substrate_list = [line.strip() for line in substrate_input_llm.split('\n') if line.strip()]
+            st.info(f"📡 Generating {num_responses} response(s) from {api_preset}...")
             
-            if not substrate_list:
-                st.error("Please provide substrate facts")
-            else:
-                with st.spinner(f"Generating {num_responses} response(s) from {api_provider}..."):
-                    try:
-                        # Import LLM client
-                        responses = []
+            try:
+                import openai
+                
+                # Configure client
+                client = openai.OpenAI(
+                    api_key=api_key if api_key else "not-needed",
+                    base_url=api_base_url
+                )
+                
+                responses = []
+                
+                with st.spinner(f"Calling LLM API ({num_responses} request(s))..."):
+                    for i in range(num_responses):
+                        messages = []
+                        if system_prompt:
+                            messages.append({"role": "system", "content": system_prompt})
+                        messages.append({"role": "user", "content": user_prompt})
                         
-                        if api_provider == "OpenAI":
-                            import openai
-                            client = openai.OpenAI(api_key=api_key)
-                            
-                            for i in range(num_responses):
-                                messages = []
-                                if system_prompt:
-                                    messages.append({"role": "system", "content": system_prompt})
-                                messages.append({"role": "user", "content": user_prompt})
-                                
-                                response = client.chat.completions.create(
-                                    model=model_name,
-                                    messages=messages,
-                                    temperature=temperature
-                                )
-                                responses.append(response.choices[0].message.content)
-                        
-                        elif api_provider == "Anthropic":
-                            import anthropic
-                            client = anthropic.Anthropic(api_key=api_key)
-                            
-                            for i in range(num_responses):
-                                response = client.messages.create(
-                                    model=model_name,
-                                    max_tokens=1024,
-                                    temperature=temperature,
-                                    system=system_prompt if system_prompt else "",
-                                    messages=[{"role": "user", "content": user_prompt}]
-                                )
-                                responses.append(response.content[0].text)
-                        
-                        elif api_provider == "Google (Gemini)":
-                            import google.generativeai as genai
-                            genai.configure(api_key=api_key)
-                            model = genai.GenerativeModel(model_name)
-                            
-                            for i in range(num_responses):
-                                full_prompt = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
-                                response = model.generate_content(
-                                    full_prompt,
-                                    generation_config=genai.types.GenerationConfig(
-                                        temperature=temperature,
-                                    )
-                                )
-                                responses.append(response.text)
-                        
-                        else:  # Custom OpenAI-compatible
-                            import openai
-                            base_url = st.text_input("Base URL", value="https://api.openai.com/v1")
-                            client = openai.OpenAI(api_key=api_key, base_url=base_url)
-                            
-                            for i in range(num_responses):
-                                messages = []
-                                if system_prompt:
-                                    messages.append({"role": "system", "content": system_prompt})
-                                messages.append({"role": "user", "content": user_prompt})
-                                
-                                response = client.chat.completions.create(
-                                    model=model_name,
-                                    messages=messages,
-                                    temperature=temperature
-                                )
-                                responses.append(response.choices[0].message.content)
-                        
-                        st.success(f"✓ Generated {len(responses)} response(s)")
-                        
-                        # Now run the guardrail
-                        st.markdown("---")
-                        st.subheader("Guardrail Analysis")
-                        
-                        with st.spinner("Running Deterministic Guardrail..."):
-                            from llm_adapter import DeterministicGuardrail, MockEmbedder
-                            import math
-                            
-                            guard = DeterministicGuardrail(
-                                substrate_texts=substrate_list,
-                                config_preset='balanced'
+                        try:
+                            response = client.chat.completions.create(
+                                model=model_name,
+                                messages=messages,
+                                temperature=temperature
                             )
+                            responses.append(response.choices[0].message.content)
+                        except Exception as e:
+                            st.error(f"Error on response {i+1}: {str(e)}")
+                            if i == 0:  # If first call fails, stop
+                                raise
+                
+                if not responses:
+                    st.error("No responses generated")
+                else:
+                    st.success(f"✓ Generated {len(responses)} response(s)")
+                    
+                    # Now run the guardrail
+                    st.markdown("---")
+                    
+                    with st.spinner("Running Deterministic Guardrail..."):
+                        from llm_adapter import DeterministicGuardrail, MockEmbedder
+                        import math
+                        
+                        guard = DeterministicGuardrail(
+                            substrate_texts=substrate_list,
+                            config_preset='balanced'
+                        )
+                        
+                        inspection = guard.inspect(responses)
+                        result_text = inspection['selected_text']
+                        metrics = inspection['metrics']
+                        
+                        # Build detailed numbers view
+                        embedder = MockEmbedder()
+                        sub_vecs = [embedder.embed(t) for t in substrate_list]
+                        resp_vecs = [embedder.embed(t) for t in responses]
+                        
+                        def cosine_similarity(v1, v2):
+                            dot = v1[0] * v2[0] + v1[1] * v2[1]
+                            mag1 = math.sqrt(v1[0]**2 + v1[1]**2)
+                            mag2 = math.sqrt(v2[0]**2 + v2[1]**2)
+                            if mag1 == 0 or mag2 == 0:
+                                return 0.0
+                            return dot / (mag1 * mag2)
+                        
+                        def euclidean_distance(v1, v2):
+                            return math.sqrt((v1[0] - v2[0])**2 + (v1[1] - v2[1])**2)
+                        
+                        # Display result
+                        st.subheader("Guardrail Decision")
+                        if result_text:
+                            st.success("🟢 **SELECTED RESPONSE**")
+                            st.markdown(f"> {result_text}")
+                        else:
+                            st.warning("🔴 **ABSTAINED** - All responses fractured under stress")
+                            st.caption("The guardrail rejected all responses. None met the yield strength requirements.")
+                        
+                        # Show all responses with scores
+                        st.markdown("---")
+                        st.subheader("Detailed Scoring for All Responses")
+                        
+                        for i, (response, cand_vec) in enumerate(zip(responses, resp_vecs)):
+                            cand_metrics = metrics['candidates'][i]
+                            is_selected = (result_text == response)
                             
-                            inspection = guard.inspect(responses)
-                            result_text = inspection['selected_text']
-                            metrics = inspection['metrics']
+                            # Compute alignment to best substrate
+                            best_alignment = -1
+                            best_substrate = None
+                            best_cos_sim = 0
                             
-                            # Build detailed numbers view
-                            embedder = MockEmbedder()
-                            sub_vecs = [embedder.embed(t) for t in substrate_list]
-                            resp_vecs = [embedder.embed(t) for t in responses]
+                            for j, sub_vec in enumerate(sub_vecs):
+                                cos_sim = cosine_similarity(cand_vec, sub_vec)
+                                alignment = (cos_sim + 1.0) / 2.0
+                                if alignment > best_alignment:
+                                    best_alignment = alignment
+                                    best_substrate = substrate_list[j]
+                                    best_cos_sim = cos_sim
                             
-                            def cosine_similarity(v1, v2):
-                                dot = v1[0] * v2[0] + v1[1] * v2[1]
-                                mag1 = math.sqrt(v1[0]**2 + v1[1]**2)
-                                mag2 = math.sqrt(v2[0]**2 + v2[1]**2)
-                                if mag1 == 0 or mag2 == 0:
-                                    return 0.0
-                                return dot / (mag1 * mag2)
-                            
-                            def euclidean_distance(v1, v2):
-                                return math.sqrt((v1[0] - v2[0])**2 + (v1[1] - v2[1])**2)
-                            
-                            # Display result
-                            if result_text:
-                                st.success(f"🟢 **Selected Response**")
-                                st.markdown(f"> {result_text}")
+                            # Display card
+                            fractured = cand_metrics.get('fractured', False)
+                            if is_selected:
+                                status = "🟢 SELECTED"
+                            elif fractured:
+                                status = "🔴 EXCLUDED (Fractured)"
                             else:
-                                st.warning("🔴 **Abstained** - No responses met yield strength requirements")
+                                status = "⚪ SURVIVED (Not Selected)"
                             
-                            # Show all responses with scores
-                            st.markdown("### All Responses with Scores")
+                            with st.expander(f"**Response {i+1}** - {status}", expanded=is_selected):
+                                st.markdown(f"**Full Response:**")
+                                st.info(response)
+                                st.markdown("---")
+                                
+                                # Metrics
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.metric("Alignment Score", f"{best_alignment:.4f}", help="Normalized cosine similarity: 0=opposite, 0.5=orthogonal, 1=identical")
+                                with col2:
+                                    st.metric("Cosine Similarity", f"{best_cos_sim:.4f}", help="Raw cosine similarity: -1 to 1")
+                                with col3:
+                                    st.metric("Final Stress σ", f"{cand_metrics['stress']:.4f}")
+                                with col4:
+                                    st.metric("Status", "Intact ✓" if not fractured else "Fractured ✗")
+                                
+                                st.caption(f"**Best substrate match:** *\"{best_substrate}\"*")
+                                
+                                # Show stress evolution chart
+                                st.markdown("**Stress Evolution**")
+                                phase_log = cand_metrics['phase_log']
+                                stress_data = [entry['stress'] for entry in phase_log]
+                                steps = list(range(len(stress_data)))
+                                
+                                fig_stress = go.Figure()
+                                fig_stress.add_trace(go.Scatter(
+                                    x=steps,
+                                    y=stress_data,
+                                    mode='lines+markers',
+                                    name='Cumulative Stress',
+                                    line=dict(color='red' if fractured else 'green', width=2),
+                                    marker=dict(size=6)
+                                ))
+                                
+                                fig_stress.update_layout(
+                                    title=f"Stress Accumulation - Response {i+1}",
+                                    yaxis_title="Cumulative Stress σ(k)",
+                                    xaxis_title="Inference Step k",
+                                    height=300,
+                                    template="plotly_dark",
+                                    showlegend=True
+                                )
+                                st.plotly_chart(fig_stress, use_container_width=True)
+                        
+                        # Summary metrics
+                        st.markdown("---")
+                        st.subheader("Summary Statistics")
+                        summary_cols = st.columns(4)
+                        with summary_cols[0]:
+                            st.metric("Total Responses", len(responses))
+                        with summary_cols[1]:
+                            st.metric("Excluded", metrics['total_excluded'])
+                        with summary_cols[2]:
+                            st.metric("Survived", len(responses) - metrics['total_excluded'])
+                        with summary_cols[3]:
+                            selected = 1 if result_text else 0
+                            st.metric("Selected", selected)
+                        
+                        # Detailed audit trail
+                        with st.expander("📊 Complete Numerical Audit Trail (JSON)", expanded=False):
+                            st.caption("Full vectors, distances, comparisons, and stress evolution for reproducibility")
                             
-                            for i, (response, cand_vec) in enumerate(zip(responses, resp_vecs)):
+                            numbers_view = {
+                                "test_metadata": {
+                                    "provider": api_preset,
+                                    "base_url": api_base_url,
+                                    "model": model_name,
+                                    "temperature": temperature,
+                                    "num_responses": len(responses),
+                                    "num_substrate_facts": len(substrate_list),
+                                    "prompt": user_prompt,
+                                    "system_prompt": system_prompt if system_prompt else "None"
+                                },
+                                "embedder": {
+                                    "name": "MockEmbedder",
+                                    "description": "Deterministic SHA-256 based 2D projection",
+                                    "definition": "sha256(text.strip().lower()) -> first 8 bytes for X, next 8 for Y, normalized to [0,1]"
+                                },
+                                "substrate": [
+                                    {"index": idx, "text": t, "vec2": [round(v[0], 8), round(v[1], 8)]}
+                                    for idx, (t, v) in enumerate(zip(substrate_list, sub_vecs))
+                                ],
+                                "responses": []
+                            }
+                            
+                            for i, (response, resp_vec) in enumerate(zip(responses, resp_vecs)):
                                 cand_metrics = metrics['candidates'][i]
-                                is_selected = (result_text == response)
                                 
-                                # Compute alignment to best substrate
-                                best_alignment = -1
-                                best_substrate = None
-                                
+                                # Compute all substrate comparisons
+                                comparisons = []
                                 for j, sub_vec in enumerate(sub_vecs):
-                                    cos_sim = cosine_similarity(cand_vec, sub_vec)
+                                    cos_sim = cosine_similarity(resp_vec, sub_vec)
                                     alignment = (cos_sim + 1.0) / 2.0
-                                    if alignment > best_alignment:
-                                        best_alignment = alignment
-                                        best_substrate = substrate_list[j]
-                                
-                                # Display card
-                                status = "🟢 SELECTED" if is_selected else ("🔴 EXCLUDED" if cand_metrics.get('fractured', False) else "⚪ SURVIVED")
-                                
-                                with st.expander(f"Response {i+1} - {status}", expanded=is_selected):
-                                    st.markdown(f"**Response:**\n> {response}")
-                                    st.markdown("---")
+                                    dist = euclidean_distance(resp_vec, sub_vec)
                                     
-                                    col1, col2, col3 = st.columns(3)
-                                    with col1:
-                                        st.metric("Alignment Score", f"{best_alignment:.4f}")
-                                    with col2:
-                                        st.metric("Final Stress", f"{cand_metrics['stress']:.4f}")
-                                    with col3:
-                                        fractured = cand_metrics.get('fractured', False)
-                                        st.metric("Status", "Fractured" if fractured else "Intact")
-                                    
-                                    st.caption(f"Best substrate match: *{best_substrate}*")
-                                    
-                                    # Show stress evolution
-                                    phase_log = cand_metrics['phase_log']
-                                    stress_data = [entry['stress'] for entry in phase_log]
-                                    
-                                    fig_stress = go.Figure()
-                                    fig_stress.add_trace(go.Scatter(
-                                        y=stress_data,
-                                        mode='lines+markers',
-                                        name='Stress',
-                                        line=dict(color='red' if fractured else 'green')
-                                    ))
-                                    fig_stress.update_layout(
-                                        title=f"Stress Evolution - Response {i+1}",
-                                        yaxis_title="Cumulative Stress σ",
-                                        xaxis_title="Step",
-                                        height=250,
-                                        template="plotly_dark"
-                                    )
-                                    st.plotly_chart(fig_stress, use_container_width=True)
-                            
-                            # Summary metrics
-                            st.markdown("### Summary Metrics")
-                            summary_cols = st.columns(4)
-                            with summary_cols[0]:
-                                st.metric("Total Responses", len(responses))
-                            with summary_cols[1]:
-                                st.metric("Excluded", metrics['total_excluded'])
-                            with summary_cols[2]:
-                                st.metric("Survived", len(responses) - metrics['total_excluded'])
-                            with summary_cols[3]:
-                                selected = 1 if result_text else 0
-                                st.metric("Selected", selected)
-                            
-                            # Detailed audit trail
-                            with st.expander("📊 Complete Numerical Audit Trail", expanded=False):
-                                st.caption("Full vectors, distances, and stress evolution for all responses")
-                                
-                                numbers_view = {
-                                    "llm_info": {
-                                        "provider": api_provider,
-                                        "model": model_name,
-                                        "temperature": temperature,
-                                        "num_responses": num_responses
-                                    },
-                                    "substrate": [
-                                        {"text": t, "vec2": [round(v[0], 8), round(v[1], 8)]}
-                                        for t, v in zip(substrate_list, sub_vecs)
-                                    ],
-                                    "responses": []
-                                }
-                                
-                                for i, (response, resp_vec) in enumerate(zip(responses, resp_vecs)):
-                                    cand_metrics = metrics['candidates'][i]
-                                    
-                                    # Compute all substrate comparisons
-                                    comparisons = []
-                                    for j, sub_vec in enumerate(sub_vecs):
-                                        cos_sim = cosine_similarity(resp_vec, sub_vec)
-                                        alignment = (cos_sim + 1.0) / 2.0
-                                        dist = euclidean_distance(resp_vec, sub_vec)
-                                        
-                                        comparisons.append({
-                                            "substrate_index": j,
-                                            "substrate_text": substrate_list[j],
-                                            "cosine_similarity": round(cos_sim, 8),
-                                            "alignment_0_1": round(alignment, 8),
-                                            "euclidean_distance": round(dist, 8),
-                                        })
-                                    
-                                    numbers_view["responses"].append({
-                                        "response_index": i,
-                                        "text": response,
-                                        "vec2": [round(resp_vec[0], 8), round(resp_vec[1], 8)],
-                                        "comparisons": comparisons,
-                                        "engine": {
-                                            "fractured": cand_metrics.get('fractured', False),
-                                            "fractured_step": cand_metrics.get('fractured_step'),
-                                            "final_stress": round(float(cand_metrics['stress']), 8),
-                                            "hash": cand_metrics.get('hash', 'N/A')
-                                        }
+                                    comparisons.append({
+                                        "substrate_index": j,
+                                        "substrate_text": substrate_list[j],
+                                        "cosine_similarity": round(cos_sim, 8),
+                                        "alignment_0_1": round(alignment, 8),
+                                        "euclidean_distance": round(dist, 8),
                                     })
                                 
-                                st.json(numbers_view)
-                    
-                    except ImportError as e:
-                        st.error(f"Missing library: {str(e)}")
-                        st.info("Install required libraries:\n```\npip install openai anthropic google-generativeai\n```")
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-                        st.exception(e)
+                                numbers_view["responses"].append({
+                                    "response_index": i,
+                                    "text": response,
+                                    "vec2": [round(resp_vec[0], 8), round(resp_vec[1], 8)],
+                                    "substrate_comparisons": comparisons,
+                                    "engine_results": {
+                                        "fractured": cand_metrics.get('fractured', False),
+                                        "fractured_at_step": cand_metrics.get('fractured_step'),
+                                        "final_stress": round(float(cand_metrics['stress']), 8),
+                                        "determinism_hash": cand_metrics.get('hash', 'N/A')
+                                    }
+                                })
+                            
+                            st.json(numbers_view)
+            
+            except ImportError:
+                st.error("Missing `openai` library. Install with: `pip install openai`")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+                if "401" in str(e) or "authentication" in str(e).lower():
+                    st.info("💡 Check your API key and make sure it's valid for the selected endpoint")
+                elif "404" in str(e) or "not found" in str(e).lower():
+                    st.info("💡 Check your model name and base URL. For local models, make sure the server is running.")
+                st.exception(e)
 
 # ============================================================================
 # Footer
