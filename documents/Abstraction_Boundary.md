@@ -1,10 +1,6 @@
----
-
-```markdown
 # Abstraction Boundary
 
 This document defines the **abstraction boundary** of the Deterministic Governance Mechanism.
-
 It exists to clearly separate what is **foundational and invariant** from what is
 **illustrative, interchangeable, or domain-specific**.
 
@@ -25,14 +21,9 @@ not to promote any particular application, model, or interface.
 
 The system is defined algebraically as the 4-tuple:
 
-```
-
 (S, C, ∩, ⊨)
 
-```
-
 Where:
-
 - **S** — State space (set of admissible states)
 - **C** — Constraint set (partially ordered under composition)
 - **∩** — Intersection operator (monotonic reduction of admissible states)
@@ -40,15 +31,10 @@ Where:
 
 ### Structural Invariant
 
-```
-
 ∀ c₁, c₂ ∈ C: (S ∩ c₁) ∩ c₂ ⊆ S ∩ c₁
-
-```
 
 Monotonicity is **structural**, not asserted.
 Under no sequence of constraint applications can admissibility expand.
-
 This invariant is the foundation of all correctness claims.
 
 ---
@@ -57,13 +43,9 @@ This invariant is the foundation of all correctness claims.
 
 Verification always produces exactly one of the following outcomes:
 
-```
-
 |S_final| = 1  →  Deterministic
 |S_final| = 0  →  Abstention
 |S_final| > 1  →  NonUniqueness
-
-```
 
 These outcomes are determined solely by **cardinality** of the final admissible set.
 No optimization, ranking, scoring, or probability is involved.
@@ -74,15 +56,10 @@ No optimization, ranking, scoring, or probability is involved.
 
 **Theorem**
 
-```
-
 If |S_final| ∈ {0, 1}, the system is provably non-hallucinatory.
-
-```
 
 **Justification**  
 A hallucination requires producing content not entailed by constraints.
-
 - When `|S_final| = 1`, the unique state is entailed by construction.
 - When `|S_final| = 0`, the system abstains and produces no content.
 
@@ -93,7 +70,6 @@ In neither case can unsupported content be generated.
 ## Path-Dependence
 
 Constraint application order affects the terminal state.
-
 The system is **lawful under composition**, not commutative.
 
 This property is intrinsic to compositional verification systems and appears in:
@@ -109,7 +85,6 @@ Path-dependence is a feature, not a defect.
 ## What Is Demonstrative (Not Foundational)
 
 The following components are **examples**, not requirements:
-
 - Semantic embeddings
 - LLM integrations
 - Visualization layers
@@ -148,7 +123,6 @@ This document defines the boundary between those two categories.
 ## Purpose
 
 This abstraction boundary exists to ensure that:
-
 - The mechanism cannot be weakened by reinterpretation
 - Applications do not redefine correctness
 - Criticism targets the formal model, not the demo
@@ -156,6 +130,3 @@ This abstraction boundary exists to ensure that:
 
 The goal is not persuasion, but **formal clarity**.
 
-Mathematics does not negotiate.
-```
----
