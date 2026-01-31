@@ -3,7 +3,7 @@
 
 A reference implementation of deterministic exclusion: a governance engine where decisions are produced by a hard mechanical threshold, not probabilistic ranking or sampling. Given identical inputs, configuration, and runtime substrate, the engine produces bit-identical outputs. This repository is not a policy proposal or moderation system; it is a mechanism, a minimal and inspectable experiment showing that exclusion decisions can be causal, replayable, and mechanically auditable.
 
-
+Check it out live here, 
 https://huggingface.co/spaces/RumleyRum/Deterministic-Governance-Mechanism
 
 ## Overview
