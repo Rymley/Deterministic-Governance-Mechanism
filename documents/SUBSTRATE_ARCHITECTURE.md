@@ -1,5 +1,13 @@
 # Substrate Sharding Architecture for 250K+ Verified States
 
+**⚠️ PRODUCTION HARDENING NOTES - NON-NORMATIVE**
+
+This document explores cache-aware scaling strategies for large substrates. **The core determinism invariant does not depend on these optimizations.** The reference implementation demonstrates the mechanism at small scale; this document projects how to maintain determinism properties at larger scale.
+
+These are engineering notes, not claims required to understand or verify the basic exclusion mechanism.
+
+---
+
 ## Executive Summary
 
 The Material-Field Engine requires access to verified substrate vectors (ground truth) to compute elastic modulus and mechanical exclusion. With 250K+ verified states, naive approaches would blow the cache budget. This document describes a hierarchical sharding strategy that keeps the most relevant vectors L1-resident while maintaining deterministic, sub-microsecond retrieval.
@@ -151,27 +159,7 @@ struct SubstrateShard {
    └─ Result: Sub-nanosecond per-vector access
 ```
 
-### Time Breakdown
-
-```
-Step 1: Domain hash        ~5 ns   (single hash operation)
-Step 2: Index lookup       ~10 ns  (hash table in L3)
-Step 3: Centroid ranking   ~3 μs   (303 distance computations)
-Step 4: Cache load         ~50 ns  (L3 → L2 → L1 copy)
-Step 5: Inference          ~200 ns (8 inference steps)
-────────────────────────────────────────────────────────
-Total:                     ~3.3 μs (3300 ns)
-```
-
-**Optimization potential:**
-- Step 3 parallelizable (SIMD, multi-core)
-- Precomputed centroid distances (cached)
-- Approximate nearest neighbor (HNSW)
-- **Target: <1 μs end-to-end**
-
----
-
-## Cache Management
+### Cache Management
 
 ### LRU Eviction Policy
 
@@ -228,10 +216,7 @@ Domain: Biology
 ├─ Subdomain: Photosynthesis
 │  ├─ Shard 1031: Chlorophyll, sunlight, glucose
 │  ├─ Shard 1032: Water absorption, stomata
-│  └─ Shard 1033: Carbon dioxide, oxygen cycle
-├─ Subdomain: Cell Biology
-│  ├─ Shard 1034: Mitochondria, ATP
-│  └─ Shard 1035: Nucleus, DNA replication
+│  └─ Shard 1033: CO2 intake, oxygen release
 └─ Subdomain: Ecology
    └─ Shard 1036: Food chains, ecosystems
 
@@ -253,54 +238,6 @@ Domain: Physics
 4. Sort vectors within each shard by locality (TSP approximation)
 
 **Benefit:** Related queries access same shards → high cache hit rate
-
----
-
-## Production Scaling
-
-### From 250K to 10M Vectors
-
-```
-Current:  250,000 vectors ÷ 64 = 3,906 shards
-Scale 40×: 10,000,000 vectors ÷ 64 = 156,250 shards
-
-Memory: 10M × 128 bytes (PQ) = 1.28 GB RAM
-L3 Cache: Still holds 100 shards (same as before)
-L2 Cache: Still holds 8 shards (same as before)
-L1 Cache: Still holds 1 shard = 64 vectors
-
-Result: Cache efficiency UNCHANGED
-        Only RAM footprint increases
-```
-
-**Key insight:** Hierarchical sharding scales to arbitrary substrate size without degrading cache performance.
-
-### Advanced Optimizations
-
-1. **Product Quantization (PQ)**
-   - Compress 768D → 64-128 bytes
-   - L1 holds 256-512 vectors
-   - Decompression on-demand (only for survivors)
-
-2. **HNSW Graph Index**
-   - Build Hierarchical Navigable Small World graph
-   - O(log N) nearest neighbor search
-   - Reduces centroid ranking from O(N) to O(log N)
-
-3. **NUMA-Aware Sharding**
-   - Pin shards to CPU cores
-   - Reduce cross-socket memory access
-   - Each core maintains its own L1/L2 cache
-
-4. **Prefetching**
-   - Predict next query domain
-   - Preload shards asynchronously
-   - Hide L3 → L2 → L1 latency
-
-5. **Mmap with Huge Pages**
-   - Memory-map shard file
-   - OS handles paging automatically
-   - 2MB huge pages reduce TLB misses
 
 ---
 
@@ -377,66 +314,18 @@ class VerifiedSubstrate:
 
 ---
 
-## Benchmarks (Projected)
-
-### 2D Demo (Current)
-
-```
-Configuration:
-  - 250,000 vectors in 2D
-  - 64 vectors per shard
-  - 3,906 total shards
-
-Results:
-  ✓ L1: 1 KB (64 vectors)
-  ✓ L2: 8 KB (512 vectors)
-  ✓ Total: 4 MB substrate
-  ✓ Cache efficiency: 0.23% in fast cache
-  ✓ Retrieval: <5 μs
-```
-
-### 768D Production (Projected)
-
-```
-Configuration:
-  - 250,000 vectors in 768D
-  - Product Quantization: 128 bytes/vector
-  - 64 vectors per shard = 8 KB/shard
-
-Results (projected):
-  ✓ L1: 8 KB (64 vectors)
-  ✓ L2: 64 KB (512 vectors)
-  ✓ Total: 32 MB substrate (compressed)
-  ✓ Cache efficiency: 0.22% in fast cache
-  ✓ Retrieval: <1 μs (with HNSW)
-  ✓ Inference: <500 ns (L1-resident)
-```
-
-### Comparison to Alternatives
-
-| Approach | Substrate Access | Latency | Cache-Friendly | Deterministic |
-|----------|------------------|---------|----------------|---------------|
-| **Naive (no sharding)** | Scan all 250K | 100 μs | ✗ | ✓ |
-| **FAISS GPU** | GPU memory | 50 μs | ✗ | ✗ (approx) |
-| **Sharded (L3)** | L3 cache | 5 μs | ~ | ✓ |
-| **Sharded (L1)** | L1 cache | **<1 μs** | ✓ | ✓ |
-
-**Winner:** Hierarchical sharding with L1 pinning.
-
----
-
 ## Summary
 
-### What We Built
+### What This Explores
 
-A **cache-aware substrate sharding system** that:
+A **cache-aware substrate sharding approach** that:
 1. Stores 250K verified states in 3,906 shards
-2. Retrieves top-8 relevant shards in <5 μs
+2. Retrieves top-8 relevant shards
 3. Keeps 64 most relevant vectors L1-resident
 4. Maintains deterministic, bit-identical behavior
-5. Scales to 10M+ vectors without cache degradation
+5. Projects scaling to 10M+ vectors without cache degradation
 
-### Key Innovations
+### Key Concepts
 
 1. **Hierarchical Caching**: L1/L2/L3/RAM tiers matched to access patterns
 2. **Domain-Aware Sharding**: Semantic clustering improves cache locality
@@ -449,9 +338,7 @@ A **cache-aware substrate sharding system** that:
 - **Before:** 250K substrate → 750 MB → DRAM access → 100ns latency
 - **After:** 64 vectors → 8 KB → L1 access → <1ns latency
 
-**100× speedup on the critical path.**
-
-This makes sub-microsecond deterministic inference feasible on commodity CPUs, no GPU required.
+This architecture explores how sub-microsecond deterministic inference might scale on commodity CPUs, no GPU required.
 
 ---
 
