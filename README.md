@@ -1,98 +1,149 @@
-````md
 # Deterministic Governance Mechanism
 
-A reference implementation of deterministic exclusion: a governance engine where decisions are produced by a hard mechanical threshold, not probabilistic ranking or sampling. Given identical inputs, configuration, and runtime substrate, the engine produces bit-identical outputs. This repository is not a policy proposal or moderation system; it is a mechanism, a minimal and inspectable experiment showing that exclusion decisions can be causal, replayable, and mechanically auditable.
+Probabilistic systems cannot be audited. If a decision changes between runs with identical inputs, the reasoning chain is non-reproducible, and post-hoc explanation is speculation.
 
-Check it out live here, 
-https://huggingface.co/spaces/RumleyRum/Deterministic-Governance-Mechanism
+This is a reference implementation of deterministic exclusion: a governance layer where decisions are mechanical, not sampled. Given identical inputs, configuration, and substrate, the system produces bit-identical outputs.
 
-## Overview
-
-The system models candidates as stateful objects subject to deterministic constraint pressure over time. Each candidate accumulates stress, and exclusion occurs only when accumulated stress exceeds a fixed yield threshold. Once excluded, a candidate cannot re-enter; history is part of the state. There is no randomness, temperature, ranking, sampling, or learned scoring. The engine behaves like a material system under load: given the same initial conditions and pressure schedule, the same fractures occur every time.
+**[Try the live demo →](https://huggingface.co/spaces/RumleyRum/Deterministic-Governance-Mechanism)**
 
 ## Core Invariant
 
-The fundamental invariant enforced by the engine is:
-
-```text
+```
 Same input + same configuration + same substrate → same output (bit-identical)
-````
-
-If two executions produce different outputs, then something upstream has changed: the inputs, the configuration, the substrate, or the runtime environment. The engine makes this divergence visible rather than hiding it behind probability.
-
-## Mechanical Model
-
-Each candidate i has state variables for accumulated stress σ_i(t), yield strength σ_y,i, and fracture state (intact or excluded). Exclusion is a one-way state transition governed by a hard threshold:
-
-```text
-σ_i(t) > σ_y,i  →  candidate fractures (excluded)
 ```
 
-Once fractured, a candidate cannot re-enter. There is no decay, annealing, or reset.
+If two executions diverge, something upstream changed. The system makes divergence visible rather than masking it.
 
-Stress evolves deterministically across discrete steps:
+## Verification
 
-```text
-σ_i(k+1) = σ_i(k) + Δσ_i(k)
+Run the same scenario five times:
+
+```bash
+python exclusion_demo.py replay
 ```
 
-All increments Δσ are computed from explicit deterministic functions defined in code.
+Output: Five identical SHA-256 hashes.
 
-## Constraint Pressure and Phases
-
-Constraint pressure is applied via a deterministic schedule λ(k) partitioned into three phases. These phases are explicit intervals in the pressure schedule and are recorded in run provenance. Nucleation is the initial pressure ramp that filters candidates failing basic structural constraints. Quenching is higher-frequency pressure application that amplifies contradictions and internal inconsistencies. Crystallization is sustained pressure that verifies stability under continued constraints. Phase boundaries, pressure values, and step counts are fixed by configuration and included in the provenance hash.
-
-```text
-λ(t)  Constraint Pressure
-│
-│        ┌────────────────── Crystallization ──────────────────┐
-│      ┌─┘
-│    ┌─┘   Quenching
-│  ┌─┘
-│┌─┘ Nucleation
-└─────────────────────────────────────────────────────────────── t
+```
+SHA-256(canonical_input || configuration || substrate_hash || output_decisions)
 ```
 
-## Elastic Modulus and Stress Accumulation
+If the hash changes, the computation diverged. If it doesn't, the decision was deterministic.
 
-At each step, stress increments are computed from measurable terms such as alignment and proximity to a verified substrate. The engine supports multiple elastic modulus formulations (for example cosine, multiplicative, and RBF), selectable via configuration. Changing the elastic modulus formulation changes how stress accumulates, not whether the process is deterministic. The exclusion rule remains identical across modes. All arithmetic is explicit and inspectable in code, and no learned parameters are involved.
+## Mechanism
 
-## Yield Strength
+Candidates are stateful objects under constraint pressure. Exclusion occurs when accumulated stress exceeds a fixed yield threshold:
 
-Yield strength σ_y is derived deterministically using a cryptographic hash (BLAKE2b). Language-dependent or salted hash functions are explicitly avoided. Given the same candidate identity and configuration, yield strength is stable across runs.
-
-## Determinism and Replay
-
-The engine does not rely on entropy sources, random seeds, sampling strategies, or hidden randomness. Canonicalization is applied where necessary through deterministic serialization, stable hashing, and explicit configuration capture. The repository includes a replay mode that executes the same run multiple times and prints identical SHA-256 hashes.
-
-## Bit-Identical Verification
-
-Each run produces a reproducibility artifact derived from a canonical hash over input, configuration, substrate hash, and output report:
-
-```text
-H = SHA-256(canonical_input || config || substrate_hash || output)
+```
+σ(t) > σ_y  →  Exclusion
 ```
 
-If two users produce different hashes, then the computation has diverged. The engine does not attempt to mask or compensate for this divergence. This shifts the trust surface from “did the model behave well?” to “did the computation remain invariant?”
+No temperature. No sampling. No randomness. Stress accumulates via explicit arithmetic over discrete time steps. Once excluded, a candidate cannot re-enter.
 
-## Provenance and Misuse Risk
+The system implements:
+- Deterministic stress accumulation (no entropy sources)
+- Cryptographic yield strength (BLAKE2b, no salt)
+- Three-phase pressure schedule (nucleation, quenching, crystallization)
+- Bit-identical verification (canonical serialization)
 
-The engine enforces determinism mechanically; it does not validate the quality of the substrate it is pointed at. Misuse risk concentrates upstream in substrate selection (what is treated as verified) and configuration selection (how strict exclusion is). Mitigations therefore target provenance and auditability: substrates should be permissioned and signed, configuration and substrate hashes should be recorded with each run, silent swaps must be detectable via hash divergence, and defaults should bias toward abstention under ambiguity.
+All arithmetic is in code. No learned parameters. No hidden state.
 
-## What This Is and Is Not
+## Quick Start
 
-This repository demonstrates that exclusion can be deterministic, decisions can be replayed and audited, and governance logic can be mechanical rather than probabilistic. It does not claim optimality, fairness, scalability to high-dimensional embeddings, or readiness for production deployment; those remain open research questions.
+```bash
+git clone https://github.com/Rymley/Deterministic-Governance-Mechanism
+cd Deterministic-Governance-Mechanism
+pip install -r requirements.txt
+python exclusion_demo.py
+```
 
-## Status
+**Prove determinism:**
+```bash
+python exclusion_demo.py replay
+# Runs 5 times - prints identical SHA-256 hashes
+```
 
-This is a reference experiment, not an open development project. The code is intended to be read, tested, forked, and reasoned about, and independent analysis or alternative implementations are welcome.
+**Compare modes:**
+```bash
+python exclusion_demo.py compare
+# Shows behavioral differences across elastic modulus modes
+```
 
-## License and Notice
+**Run full test suite:**
+```bash
+python test_suite.py
+# 14 mechanical tests verifying invariants
+```
 
-Source-available for research and personal use. Commercial deployment requires a separate license. Concepts demonstrated are covered by a pending patent application.
+## What This Is
+
+An experiment showing exclusion can be:
+- **Deterministic** (same inputs → same outputs)
+- **Replayable** (hash proves invariance)
+- **Mechanical** (threshold, not probability)
+
+## What This Is Not
+
+- A production system
+- A claim about optimality or fairness
+- A solution to high-dimensional scaling (open question)
+- A validation of substrate quality (garbage in, deterministic garbage out)
+
+## Provenance and Misuse
+
+The engine enforces determinism mechanically; it does not validate the quality of the substrate it is pointed at. Misuse risk concentrates upstream in substrate selection (what is treated as verified) and configuration selection (how strict exclusion is).
+
+Mitigations target provenance and auditability:
+- Substrates should be permissioned and signed
+- Configuration and substrate hashes recorded with each run
+- Silent swaps detectable via hash divergence
+- Defaults bias toward abstention under ambiguity
+
+## Files
+
+- `material_field_engine.py` - Core implementation
+- `exclusion_demo.py` - Fixed demonstration run
+- `test_suite.py` - Behavior verification (14 tests)
+- `test_determinism.py` - Bit-identical execution proof
+- `config.json` - Timing presets and configuration
+- `documents/` - Detailed technical documentation
+
+## Documentation
+
+- [Implementation Status](documents/IMPLEMENTATION_STATUS.md) - Technical architecture and assessment
+- [License](LICENSE) - Usage terms and restrictions
+- [Security Policy](SECURITY.md) - Reporting guidelines
+- [Contributing](CONTRIBUTING.md) - Participation guidelines
+
+## Production Use
+
+This is a reference implementation demonstrating core mechanics.
+
+For production-ready deployment with enterprise features → **[verhash.com](https://verhash.com)**
+
+## Commercial Partnerships
+
+Interested in technology licensing, partnerships, or investment:
+
+**Contact:** ryan@verhash.com  
+**Organization:** Verhash LLC
+
+## Patent Notice
+
+Demonstrates concepts from pending patent application:
+- **Title:** "Deterministic Material-Field Governance for Computational Systems"
+- **Priority Date:** January 25, 2026
+- **Applicant:** Verhash LLC
+
+## License
+
+**Research and Personal Use:** Open source  
+**Commercial Deployment:** Requires separate license
+
+See [LICENSE](LICENSE) for full terms.
+
+---
+
+**Try to break the invariant. If you do, file an issue.**
 
 *An invitation to treat inference as mechanics rather than chance.*
-
-```
-::contentReference[oaicite:0]{index=0}
-```
