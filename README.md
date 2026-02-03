@@ -125,7 +125,7 @@ For production-ready deployment with enterprise features → **[verhash.com](htt
 
 Interested in technology licensing, partnerships, or investment:
 
-**Contact:** ryan@verhash.com  
+**Contact:** ryan@verhash.net  
 **Organization:** Verhash LLC
 
 ## Patent Notice
