@@ -9,7 +9,7 @@ Patent Priority: January 25, 2026
 
 import math
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict
 from enum import Enum
 import time
@@ -23,6 +23,84 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 
+FP_BITS = 8
+FP_SCALE = 1 << FP_BITS
+FP_HALF = 1 << (FP_BITS - 1)
+FP_ONE = FP_SCALE
+
+
+def fp_from_float(value: float) -> int:
+    return int(round(value * FP_SCALE))
+
+
+def fp_to_float(value_q: int) -> float:
+    return value_q / FP_SCALE
+
+
+def _fp_round_div(numer: int, denom: int) -> int:
+    if denom == 0:
+        raise ZeroDivisionError("fixed-point divide by zero")
+    sign = 1 if (numer >= 0) == (denom >= 0) else -1
+    numer_abs = abs(numer)
+    denom_abs = abs(denom)
+    return sign * ((numer_abs + denom_abs // 2) // denom_abs)
+
+
+def fp_mul(a_q: int, b_q: int) -> int:
+    prod = a_q * b_q
+    if prod >= 0:
+        return (prod + FP_HALF) >> FP_BITS
+    return -(((-prod) + FP_HALF) >> FP_BITS)
+
+
+def fp_div(a_q: int, b_q: int) -> int:
+    return _fp_round_div(a_q << FP_BITS, b_q)
+
+
+def fp_div_int(a_q: int, denom: int) -> int:
+    return _fp_round_div(a_q, denom)
+
+
+def fp_from_ratio(numer: int, denom: int) -> int:
+    if denom == 0:
+        raise ZeroDivisionError("fixed-point ratio divide by zero")
+    sign = 1 if (numer >= 0) == (denom >= 0) else -1
+    numer_abs = abs(numer)
+    denom_abs = abs(denom)
+    return sign * ((numer_abs << FP_BITS) + denom_abs // 2) // denom_abs
+
+
+def fp_sqrt(value_q: int) -> int:
+    if value_q <= 0:
+        return 0
+    return math.isqrt(value_q * FP_SCALE)
+
+
+_EXP_NEG_INT_Q = [
+    256, 94, 35, 13, 5, 2, 1, 0, 0, 0, 0
+]
+
+
+def fp_exp_neg(value_q: int) -> int:
+    if value_q <= 0:
+        return FP_ONE
+    k = value_q >> FP_BITS
+    if k >= len(_EXP_NEG_INT_Q):
+        return 0
+    r_q = value_q & (FP_SCALE - 1)
+    r2 = fp_mul(r_q, r_q)
+    r3 = fp_mul(r2, r_q)
+    r4 = fp_mul(r3, r_q)
+    r5 = fp_mul(r4, r_q)
+    term = FP_ONE
+    term -= r_q
+    term += fp_div_int(r2, 2)
+    term -= fp_div_int(r3, 6)
+    term += fp_div_int(r4, 24)
+    term -= fp_div_int(r5, 120)
+    return fp_mul(_EXP_NEG_INT_Q[k], term)
+
+
 class Phase(Enum):
     """Material phase states during inference"""
     NUCLEATION = 1      # t < 0.5T: Low pressure, exploration
@@ -33,61 +111,110 @@ class Phase(Enum):
 @dataclass
 class MaterialProperties:
     """Intrinsic structural properties of semantic states"""
-    elastic_modulus: float  # E: Structural rigidity (0.0-1.0)
-    yield_strength: float   # σ_y: Fracture threshold (0.0-1.0)
-    strain: float          # ε: Deviation from grounded state
-    stress: float          # σ: Applied constraint pressure
-    
+    elastic_modulus_q: int  # E: Structural rigidity (Q24.8)
+    yield_strength_q: int   # sigma_y: Fracture threshold (Q24.8)
+    strain_q: int           # epsilon: Deviation from grounded state (Q24.8)
+    stress_q: int           # sigma: Applied constraint pressure (Q24.8)
+
     def is_fractured(self) -> bool:
         """Check if vector exceeds yield strength"""
-        return self.stress > self.yield_strength
+        return self.stress_q > self.yield_strength_q
+
+    @property
+    def elastic_modulus(self) -> float:
+        return fp_to_float(self.elastic_modulus_q)
+
+    @property
+    def yield_strength(self) -> float:
+        return fp_to_float(self.yield_strength_q)
+
+    @property
+    def strain(self) -> float:
+        return fp_to_float(self.strain_q)
+
+    @property
+    def stress(self) -> float:
+        return fp_to_float(self.stress_q)
 
 
 @dataclass
 class Vector2D:
-    """2D latent space vector with material properties"""
+    """2D latent space vector with material properties (supports N-D coords)"""
     x: float
     y: float
     properties: MaterialProperties
     substrate_aligned: bool = False
     candidate_index: Optional[int] = None
-    
+    coords: Optional[List[float]] = None
+    x_q: int = field(init=False)
+    y_q: int = field(init=False)
+    coords_q: List[int] = field(init=False)
+
+    def __post_init__(self) -> None:
+        if self.coords is None:
+            self.coords = [self.x, self.y]
+        else:
+            # Ensure x/y reflect the first two coordinates for visualization.
+            if len(self.coords) < 2:
+                raise ValueError("coords must contain at least 2 dimensions")
+            self.x = float(self.coords[0])
+            self.y = float(self.coords[1])
+
+        self.coords_q = [fp_from_float(v) for v in self.coords]
+        self.x_q = self.coords_q[0]
+        self.y_q = self.coords_q[1]
+
     def distance_to(self, other: 'Vector2D') -> float:
         """Euclidean distance between vectors"""
-        return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
-    
+        return fp_to_float(self.distance_to_q(other))
+
+    def distance_to_q(self, other: 'Vector2D') -> int:
+        if len(self.coords_q) != len(other.coords_q):
+            raise ValueError("Vector dimensionality mismatch")
+        total = 0
+        for a_q, b_q in zip(self.coords_q, other.coords_q):
+            d_q = a_q - b_q
+            total += fp_mul(d_q, d_q)
+        return fp_sqrt(total)
+
     def dot_product(self, substrate: 'Vector2D') -> float:
         """Compute normalized alignment with substrate via dot product"""
-        # Normalize both vectors first
-        self_norm = math.sqrt(self.x ** 2 + self.y ** 2)
-        substrate_norm = math.sqrt(substrate.x ** 2 + substrate.y ** 2)
-        
+        return fp_to_float(self.dot_product_q(substrate))
+
+    def dot_product_q(self, substrate: 'Vector2D') -> int:
+        if len(self.coords_q) != len(substrate.coords_q):
+            raise ValueError("Vector dimensionality mismatch")
+        self_norm = 0
+        substrate_norm = 0
+        dot_q = 0
+        for a_q, b_q in zip(self.coords_q, substrate.coords_q):
+            dot_q += fp_mul(a_q, b_q)
+            self_norm += fp_mul(a_q, a_q)
+            substrate_norm += fp_mul(b_q, b_q)
+
+        self_norm = fp_sqrt(self_norm)
+        substrate_norm = fp_sqrt(substrate_norm)
         if self_norm == 0 or substrate_norm == 0:
-            return 0.0
-        
-        # Normalized dot product gives cosine similarity in [-1, 1]
-        return (self.x * substrate.x + self.y * substrate.y) / (self_norm * substrate_norm)
-
-
+            return 0
+        denom_q = fp_mul(self_norm, substrate_norm)
+        return fp_div(dot_q, denom_q)
 class SemanticClass(Enum):
     """Semantic classes with different yield strengths"""
-    VERIFIED_FACT = (0.90, 0.98)        # High persistence
-    CONTEXTUAL = (0.65, 0.75)           # Moderate stability
-    CREATIVE = (0.40, 0.55)             # Viscoelastic flexibility
-    SPECULATIVE = (0.0, 0.25)           # Brittle, early fracture
-    
-    def __init__(self, min_yield: float, max_yield: float):
+    VERIFIED_FACT = (fp_from_float(0.90), fp_from_float(0.98))  # High persistence
+    CONTEXTUAL = (fp_from_float(0.65), fp_from_float(0.75))     # Moderate stability
+    CREATIVE = (fp_from_float(0.40), fp_from_float(0.55))       # Viscoelastic flexibility
+    SPECULATIVE = (fp_from_float(0.0), fp_from_float(0.25))     # Brittle, early fracture
+
+    def __init__(self, min_yield: int, max_yield: int):
         self.min_yield = min_yield
         self.max_yield = max_yield
-
-
 class PhaseTransitionController:
     """
     Controls material phase transitions through progressive constraint pressure.
     Implements the three-phase solidification process.
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  lambda_min: float = 0.30,
                  lambda_max: float = 0.90,
                  total_steps: int = 8):
@@ -99,62 +226,81 @@ class PhaseTransitionController:
         """
         self.lambda_min = lambda_min
         self.lambda_max = lambda_max
+        self.lambda_min_q = fp_from_float(lambda_min)
+        self.lambda_max_q = fp_from_float(lambda_max)
         self.total_steps = total_steps
         self.current_step = 0
-        
-        # Phase transition thresholds
-        self.nucleation_threshold = 0.5
-        self.quenching_threshold = 0.9
-        
+
+        # Phase transition thresholds (stored in fixed-point)
+        self._nucleation_threshold_q = fp_from_float(0.5)
+        self._quenching_threshold_q = fp_from_float(0.9)
+
+    @property
+    def nucleation_threshold(self) -> float:
+        return fp_to_float(self._nucleation_threshold_q)
+
+    @nucleation_threshold.setter
+    def nucleation_threshold(self, value: float) -> None:
+        self._nucleation_threshold_q = fp_from_float(value)
+
+    @property
+    def quenching_threshold(self) -> float:
+        return fp_to_float(self._quenching_threshold_q)
+
+    @quenching_threshold.setter
+    def quenching_threshold(self, value: float) -> None:
+        self._quenching_threshold_q = fp_from_float(value)
+
+    def _current_t_q(self) -> int:
+        if self.total_steps <= 1:
+            return FP_ONE
+        return fp_from_ratio(self.current_step, self.total_steps - 1)
+
     def get_current_phase(self) -> Phase:
         """Determine current material phase"""
-        # Use (total_steps - 1) to ensure final step reaches t=1.0
         if self.total_steps <= 1:
             return Phase.CRYSTALLIZATION
-            
-        t = self.current_step / (self.total_steps - 1)
-        
-        if t < self.nucleation_threshold:
+
+        t_q = self._current_t_q()
+
+        if t_q < self._nucleation_threshold_q:
             return Phase.NUCLEATION
-        elif t < self.quenching_threshold:
+        if t_q < self._quenching_threshold_q:
             return Phase.QUENCHING
-        else:
-            return Phase.CRYSTALLIZATION
-    
-    def get_constraint_pressure(self) -> float:
+        return Phase.CRYSTALLIZATION
+
+    def get_constraint_pressure_q(self) -> int:
         """
-        Compute time-dependent constraint pressure λ(t)
-        
-        Phase 1 (Nucleation): λ(t) = λ_min
-        Phase 2 (Quenching): λ(t) = λ_min + (λ_max - λ_min) * ((t - 0.5T)/(0.4T))
-        Phase 3 (Crystallization): λ(t) = λ_max
+        Compute time-dependent constraint pressure lambda(t) in fixed-point.
         """
         if self.total_steps <= 1:
-            return self.lambda_max
-            
-        t = self.current_step / (self.total_steps - 1)
+            return self.lambda_max_q
+
+        t_q = self._current_t_q()
         phase = self.get_current_phase()
-        
+
         if phase == Phase.NUCLEATION:
-            return self.lambda_min
-        
-        elif phase == Phase.QUENCHING:
-            # Linear ramp from λ_min to λ_max
-            progress = (t - self.nucleation_threshold) / (self.quenching_threshold - self.nucleation_threshold)
-            return self.lambda_min + (self.lambda_max - self.lambda_min) * progress
-        
-        else:  # CRYSTALLIZATION
-            return self.lambda_max
-    
+            return self.lambda_min_q
+
+        if phase == Phase.QUENCHING:
+            denom = self._quenching_threshold_q - self._nucleation_threshold_q
+            if denom == 0:
+                return self.lambda_max_q
+            progress_q = fp_div(t_q - self._nucleation_threshold_q, denom)
+            return self.lambda_min_q + fp_mul(self.lambda_max_q - self.lambda_min_q, progress_q)
+
+        return self.lambda_max_q
+
+    def get_constraint_pressure(self) -> float:
+        return fp_to_float(self.get_constraint_pressure_q())
+
     def advance(self):
         """Advance to next time step"""
         self.current_step += 1
-    
+
     def reset(self):
         """Reset to initial state"""
         self.current_step = 0
-
-
 class VerifiedSubstrate:
     """
     Verified substrate containing ground-truth states.
@@ -173,59 +319,72 @@ class VerifiedSubstrate:
         vector.substrate_aligned = True
         self.states.append(vector)
 
-    def compute_elastic_modulus(self, candidate: Vector2D) -> float:
+    def compute_elastic_modulus(self, candidate: Vector2D) -> int:
         """
-        Compute elastic modulus E via alignment with substrate.
+        Compute elastic modulus E via alignment with substrate (fixed-point).
 
         Modes:
         - 'cosine': Pure angular alignment (direction-based)
-        - 'multiplicative': Alignment × proximity (requires both)
+        - 'multiplicative': Alignment x proximity (requires both)
         - 'rbf': Pure proximity (distance-based, RBF kernel)
 
         High E = diamond-like, factual
         Low E = glass-like, speculative
         """
         if not self.states:
-            return 0.5  # Default for empty substrate
+            return fp_from_float(0.5)
 
-        # Compute alignment and distance to all substrate states
-        alignments = [candidate.dot_product(state) for state in self.states]
-        distances = [candidate.distance_to(state) for state in self.states]
+        alignments = [candidate.dot_product_q(state) for state in self.states]
+        distances = [candidate.distance_to_q(state) for state in self.states]
 
-        # Find best substrate state (max alignment)
         max_idx = max(range(len(alignments)), key=alignments.__getitem__)
         best_alignment = alignments[max_idx]
         best_distance = distances[max_idx]
 
-        # Normalize alignment to [0, 1]
-        alignment_term = (best_alignment + 1.0) / 2.0
+        alignment_term = fp_div_int(best_alignment + FP_ONE, 2)
 
-        # Compute proximity term using RBF kernel
-        # exp(-d²/2σ²) → 1.0 when d=0, → 0.0 when d→∞
-        proximity_term = math.exp(-(best_distance ** 2) / (2 * (self.elastic_modulus_sigma ** 2)))
+        sigma_q = fp_from_float(self.elastic_modulus_sigma)
+        sigma2 = fp_mul(sigma_q, sigma_q)
+        if sigma2 == 0:
+            proximity_term = 0
+        else:
+            d2 = fp_mul(best_distance, best_distance)
+            
+            # Normalize by D to prevent RBF collapse
+            if len(candidate.coords_q) > 1:
+                dim_k = len(candidate.coords_q)
+                d2 = fp_div_int(d2, dim_k)
 
-        # Apply mode-specific computation
+            denom = sigma2 * 2
+            x_q = fp_div(d2, denom)
+            proximity_term = fp_exp_neg(x_q)
+
         if self.elastic_modulus_mode == 'cosine':
             return alignment_term
-        elif self.elastic_modulus_mode == 'multiplicative':
-            return alignment_term * proximity_term
-        elif self.elastic_modulus_mode == 'rbf':
+        if self.elastic_modulus_mode == 'multiplicative':
+            return fp_mul(alignment_term, proximity_term)
+        if self.elastic_modulus_mode == 'rbf':
             return proximity_term
-        else:
-            raise ValueError(f"Unknown elastic_modulus_mode: {self.elastic_modulus_mode}")
-    
-    def compute_strain(self, candidate: Vector2D) -> float:
+        raise ValueError(f"Unknown elastic_modulus_mode: {self.elastic_modulus_mode}")
+
+    def compute_strain(self, candidate: Vector2D) -> int:
         """
-        Compute strain ε as deviation distance from nearest grounded state.
-        Uses Euclidean distance.
+        Compute strain epsilon as deviation distance from nearest grounded state.
+        Uses fixed-point Euclidean distance.
         """
         if not self.states:
-            return 1.0  # Maximum strain if no substrate
+            return FP_ONE
+
+        distances = [candidate.distance_to_q(state) for state in self.states]
+        min_dist_q = min(distances)
         
-        distances = [candidate.distance_to(state) for state in self.states]
-        return min(distances)
-
-
+        # Normalize strain by sqrt(D)
+        if candidate.coords_q and len(candidate.coords_q) > 1:
+            dim_root_q = fp_sqrt(len(candidate.coords_q) << FP_BITS)
+            if dim_root_q > 0:
+                min_dist_q = fp_div(min_dist_q, dim_root_q)
+                
+        return min_dist_q
 class MaterialFieldEngine:
     """
     Main inference engine implementing deterministic material-field governance.
@@ -249,6 +408,9 @@ class MaterialFieldEngine:
         self.candidate_vectors: List[Vector2D] = []
         self.excluded_vectors: List[Vector2D] = []
         self.final_output: Optional[Vector2D] = None
+        self.max_stress_q: int = 0
+        self._all_candidates: List[Vector2D] = []
+        self._initial_candidate_count: int = 0
         
         # Performance metrics
         self.inference_start_time = 0.0
@@ -256,189 +418,217 @@ class MaterialFieldEngine:
     
     def _compute_material_properties(self, vector: Vector2D) -> MaterialProperties:
         """Compute intrinsic material properties for a candidate vector"""
-        # Elastic modulus from substrate alignment
-        E = self.substrate.compute_elastic_modulus(vector)
-        
-        # Strain from deviation distance
-        epsilon = self.substrate.compute_strain(vector)
-        
-        # Initial stress from Hooke's law: σ = E · ε
-        sigma = E * epsilon
-        
-        # Yield strength DETERMINISTICALLY derived from vector properties
-        # Use stable cryptographic hash (not Python's salted hash())
-        # This ensures σ_y is reproducible across processes and systems
+        E_q = self.substrate.compute_elastic_modulus(vector)
+        epsilon_q = self.substrate.compute_strain(vector)
+        sigma_q = fp_mul(E_q, epsilon_q)
+
         import hashlib
-        vector_bytes = f"{round(vector.x, 6)},{round(vector.y, 6)}".encode('utf-8')
+        vector_bytes = ",".join(str(v) for v in vector.coords_q).encode('utf-8')
         stable_hash = int(hashlib.blake2b(vector_bytes, digest_size=8).hexdigest(), 16)
-        
-        # Determine semantic class from elastic modulus
-        if E > 0.90:
+
+        if E_q > fp_from_float(0.90):
             class_range = SemanticClass.VERIFIED_FACT.value
-        elif E > 0.65:
+        elif E_q > fp_from_float(0.65):
             class_range = SemanticClass.CONTEXTUAL.value
-        elif E > 0.40:
+        elif E_q > fp_from_float(0.40):
             class_range = SemanticClass.CREATIVE.value
         else:
             class_range = SemanticClass.SPECULATIVE.value
-        
-        # Map stable hash to range deterministically
-        # Use modulo to get stable position in [0, 1), then scale to class range
-        normalized_hash = (stable_hash % 1000000) / 1000000.0
-        sigma_y = class_range[0] + normalized_hash * (class_range[1] - class_range[0])
-        
+
+        normalized_q = fp_from_ratio(stable_hash % 1000000, 1000000)
+        sigma_y_q = class_range[0] + fp_mul(normalized_q, class_range[1] - class_range[0])
+
         return MaterialProperties(
-            elastic_modulus=E,
-            yield_strength=sigma_y,
-            strain=epsilon,
-            stress=sigma
+            elastic_modulus_q=E_q,
+            yield_strength_q=sigma_y_q,
+            strain_q=epsilon_q,
+            stress_q=sigma_q
         )
-    
-    def _mechanical_exclusion(self, lambda_current: float) -> Tuple[List[Vector2D], List[int]]:
+
+    def _mechanical_exclusion(
+        self,
+        lambda_current_q: int,
+        step: Optional[int] = None,
+        phase: Optional[Phase] = None,
+        trace_log: Optional[Dict[int, List[Dict[str, float]]]] = None,
+        fractured_steps: Optional[Dict[int, Optional[int]]] = None,
+    ) -> Tuple[List[Vector2D], List[int]]:
         """
         Apply mechanical exclusion filter with balanced stress mechanics.
-        
+
         Stress accumulation formula:
-        σ_effective = σ_base + λ(t) · ε · (1 - E/2)
-        
-        Where:
-        - σ_base: accumulated stress from previous steps
-        - λ(t): time-dependent constraint pressure (can exceed 1.0)
-        - ε: strain (deviation from substrate)
-        - (1 - E/2): elastic resistance term (high E → lower pressure amplification)
-        
-        This balances:
-        - High E vectors (factual) resist pressure better
-        - High ε vectors (far from substrate) accumulate stress faster
-        - λ increases over time, progressively stressing all candidates
+        sigma_effective = sigma_base + lambda(t) * epsilon * (1 - E/2)
         """
         survivors: List[Vector2D] = []
         excluded_indices: List[int] = []
-        
+
         for vector in self.candidate_vectors:
-            # Elastic resistance: high E reduces pressure amplification
-            # (1 - E/2) ranges from 0.5 (E=1.0) to 1.0 (E=0.0)
-            elastic_resistance = 1.0 - (vector.properties.elastic_modulus / 2.0)
-            
-            # Pressure-driven stress increment
-            stress_increment = lambda_current * vector.properties.strain * elastic_resistance
-            
-            # Accumulate stress
-            effective_stress = vector.properties.stress + stress_increment
-            
-            # Check fracture condition: σ_effective > σ_y
-            if effective_stress > vector.properties.yield_strength:
-                # Vector fractures - exclude permanently
-                vector.properties.stress = effective_stress
+            elastic_resistance_q = FP_ONE - fp_div_int(vector.properties.elastic_modulus_q, 2)
+            stress_increment_q = fp_mul(fp_mul(lambda_current_q, vector.properties.strain_q), elastic_resistance_q)
+            previous_stress_q = vector.properties.stress_q
+            effective_stress_q = previous_stress_q + stress_increment_q
+            fractured = effective_stress_q > vector.properties.yield_strength_q
+
+            if effective_stress_q > self.max_stress_q:
+                self.max_stress_q = effective_stress_q
+
+            if trace_log is not None and vector.candidate_index is not None:
+                trace_log[vector.candidate_index].append({
+                    "step": int(step) if step is not None else 0,
+                    "phase": phase.name if phase is not None else "",
+                    "pressure": fp_to_float(lambda_current_q),
+                    "elastic_modulus": fp_to_float(vector.properties.elastic_modulus_q),
+                    "delta_stress": fp_to_float(effective_stress_q - previous_stress_q),
+                    "stress": fp_to_float(effective_stress_q),
+                    "fractured": fractured,
+                })
+                if fractured_steps is not None and fractured_steps.get(vector.candidate_index) is None and fractured:
+                    fractured_steps[vector.candidate_index] = int(step) if step is not None else 0
+
+            if fractured:
+                vector.properties.stress_q = effective_stress_q
                 self.excluded_vectors.append(vector)
                 if vector.candidate_index is not None:
                     excluded_indices.append(vector.candidate_index)
-                
-                # Zero out in memory (hard masking, not soft attention)
-                # In actual implementation: explicit cache line invalidation
             else:
-                # Vector survives, update stress for next iteration
-                vector.properties.stress = effective_stress
+                vector.properties.stress_q = effective_stress_q
                 survivors.append(vector)
-        
+
         return survivors, excluded_indices
-    
-    def initialize_candidates(self, initial_vectors: List[Tuple[float, float]]):
+
+    def initialize_candidates(self, initial_vectors: List[List[float]]):
         """
-        Initialize candidate vectors in the 2D latent field.
-        
+        Initialize candidate vectors in the latent field.
+
         Args:
-            initial_vectors: List of (x, y) coordinates
+            initial_vectors: List of coordinate lists (length >= 2)
         """
         self.candidate_vectors = []
-        
-        for idx, (x, y) in enumerate(initial_vectors):
-            vector = Vector2D(x=x, y=y, properties=None)
+        self._all_candidates = []
+        self._initial_candidate_count = 0
+
+        for idx, coords in enumerate(initial_vectors):
+            if len(coords) < 2:
+                raise ValueError("candidate vector must have at least 2 dimensions")
+            vector = Vector2D(x=coords[0], y=coords[1], properties=None, coords=list(coords))
             vector.properties = self._compute_material_properties(vector)
             vector.candidate_index = idx
             self.candidate_vectors.append(vector)
+            self._all_candidates.append(vector)
+            self._initial_candidate_count += 1
     
-    def inference_step(self) -> Tuple[Phase, int, float, List[int]]:
+    def inference_step(
+        self,
+        step: int,
+        trace_log: Optional[Dict[int, List[Dict[str, float]]]] = None,
+        fractured_steps: Optional[Dict[int, Optional[int]]] = None,
+    ) -> Tuple[Phase, int, int, List[int]]:
         """
         Execute single inference step with phase transition.
-        
+
         Returns:
-            (current_phase, surviving_count, constraint_pressure)
+            (current_phase, surviving_count, constraint_pressure_q, excluded_indices)
         """
-        # Get current phase and pressure
         phase = self.phase_controller.get_current_phase()
-        lambda_current = self.phase_controller.get_constraint_pressure()
-        
-        # Apply mechanical exclusion
-        self.candidate_vectors, excluded_indices = self._mechanical_exclusion(lambda_current)
-        
-        # Advance phase
+        lambda_current_q = self.phase_controller.get_constraint_pressure_q()
+
+        self.candidate_vectors, excluded_indices = self._mechanical_exclusion(
+            lambda_current_q,
+            step=step,
+            phase=phase,
+            trace_log=trace_log,
+            fractured_steps=fractured_steps,
+        )
+
         self.phase_controller.advance()
-        
-        return phase, len(self.candidate_vectors), lambda_current, excluded_indices
-    
-    def run_inference(self) -> Dict:
+
+        return phase, len(self.candidate_vectors), lambda_current_q, excluded_indices
+
+    def run_inference(self, collect_trace: bool = False) -> Dict:
         """
         Run complete inference cycle through all phase transitions.
-        
+
         Returns:
             Dictionary with inference results and metrics
         """
         self.inference_start_time = time.perf_counter_ns()
         self.phase_controller.reset()
-        
-        # Clear excluded vectors from any previous runs
+
         self.excluded_vectors = []
-        
-        # Track phase transitions
+        self.max_stress_q = 0
+
+        trace_log = None
+        fractured_steps = None
+        if collect_trace:
+            trace_log = {i: [] for i in range(self._initial_candidate_count)}
+            fractured_steps = {i: None for i in range(self._initial_candidate_count)}
+
         phase_log = []
-        
-        # Run through all inference steps
+
         for step in range(self.phase_controller.total_steps):
-            phase, survivors, pressure, excluded_indices = self.inference_step()
-            
+            phase, survivors, pressure_q, excluded_indices = self.inference_step(
+                step,
+                trace_log=trace_log,
+                fractured_steps=fractured_steps,
+            )
+
             phase_log.append({
                 'step': step,
                 'phase': phase.name,
                 'survivors': survivors,
-                'pressure': pressure,
+                'pressure': fp_to_float(pressure_q),
                 'excluded': len(excluded_indices),
                 'excluded_indices': excluded_indices,
             })
-            
-            # Early termination if all vectors excluded or crystallized
+
             if survivors == 0:
                 break
-            
+
             if phase == Phase.CRYSTALLIZATION and survivors == 1:
                 break
-        
-        # Final output is the last surviving vector
+
         if self.candidate_vectors:
             self.final_output = self.candidate_vectors[0]
         else:
             self.final_output = None
-        
+
         self.inference_end_time = time.perf_counter_ns()
         latency_ns = self.inference_end_time - self.inference_start_time
         latency_ms = latency_ns / 1e6
-        
-        # Determine if output is hallucination-free
-        # True hallucination-free means: either we have a well-grounded output,
-        # or we explicitly abstained because no candidate met the bar
+
         hallucination_free = False
         if self.final_output:
-            # Output is grounded if it has high elastic modulus or is substrate-aligned
             hallucination_free = (
-                self.final_output.substrate_aligned or 
-                self.final_output.properties.elastic_modulus > 0.65
+                self.final_output.substrate_aligned or
+                self.final_output.properties.elastic_modulus_q > fp_from_float(0.65)
             )
         else:
-            # Abstention (no output) is also hallucination-free
-            # System refused to guess rather than propagating unsupported state
             hallucination_free = True
-        
-        return {
+
+        final_stress_q = self.final_output.properties.stress_q if self.final_output else self.max_stress_q
+        final_stress = fp_to_float(final_stress_q) if final_stress_q is not None else 0.0
+        max_stress = fp_to_float(self.max_stress_q)
+
+        candidate_metrics = None
+        if collect_trace and trace_log is not None:
+            candidate_metrics = []
+            for i in range(self._initial_candidate_count):
+                trace = trace_log[i]
+                fractured_step = fractured_steps[i] if fractured_steps is not None else None
+                fractured = fractured_step is not None
+                if trace:
+                    candidate_final_stress = trace[-1]["stress"]
+                else:
+                    candidate_final_stress = fp_to_float(self._all_candidates[i].properties.stress_q)
+                candidate_metrics.append({
+                    "phase_log": trace,
+                    "fractured": fractured,
+                    "fractured_step": fractured_step,
+                    "stress": candidate_final_stress,
+                    "hash": None,
+                })
+
+        results = {
             'final_output': self.final_output,
             'phase_log': phase_log,
             'total_excluded': len(self.excluded_vectors),
@@ -448,9 +638,16 @@ class MaterialFieldEngine:
             'latency_per_step_ns': latency_ns / self.phase_controller.total_steps if self.phase_controller.total_steps > 0 else 0,
             'deterministic': True,
             'hallucination_free': hallucination_free,
-            'abstained': self.final_output is None
+            'abstained': self.final_output is None,
+            'final_stress_q': final_stress_q,
+            'final_stress': final_stress,
+            'max_stress_q': self.max_stress_q,
+            'max_stress': max_stress,
         }
-    
+        if candidate_metrics is not None:
+            results['candidates'] = candidate_metrics
+        return results
+
     def get_audit_trail(self) -> List[Dict]:
         """
         Generate complete audit trail showing evidentiary support.

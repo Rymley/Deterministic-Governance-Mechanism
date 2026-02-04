@@ -12,7 +12,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -25,16 +25,16 @@ sys.path.insert(0, str(Path(__file__).parent))
 from material_field_engine import MaterialFieldEngine, VerifiedSubstrate, Vector2D
 
 
-_STARTUP_BANNER = """\
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                                                                              ║
-║              Deterministic Exclusion Demonstration                            ║
-║                                                                              ║
-║  Executes a fixed query against a verified substrate and                     ║
-║  logs phase-wise candidate exclusion under deterministic                     ║
-║  constraint pressure.                                                        ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+_STARTUP_BANNER = """????????????????????????????????????????????????????????????????????????????????
++------------------------------------------------------------------------------+
+|                                                                              |
+|              Deterministic Exclusion Demonstration                           |
+|                                                                              |
+|  Executes a fixed query against a verified substrate and                     |
+|  logs phase-wise candidate exclusion under deterministic                     |
+|  constraint pressure.                                                        |
+|                                                                              |
++------------------------------------------------------------------------------+
 """
 
 
@@ -88,7 +88,7 @@ def run_deterministic_exclusion_demo(
         print("Query: Where do plants get their food?")
         print(f"Elastic modulus mode: {elastic_modulus_mode}")
         print(f"Sigma: {sigma:.2f}")
-        print(f"Pressure schedule: λ = {lambda_min:.2f} → {lambda_max:.2f}, steps = {steps}")
+        print(f"Pressure schedule: lambda = {lambda_min:.2f} -> {lambda_max:.2f}, steps = {steps}")
         print()
 
     substrate = VerifiedSubstrate(
@@ -135,7 +135,7 @@ def run_deterministic_exclusion_demo(
 
     if emit_stdout:
         print("Candidates:")
-        print(f"{'#':<3} {'Label':<32} | {'E':<8} | {'σ_y':<8} | {'ε':<8} | {'σ_init':<8}")
+        print(f"{'#':<3} {'Label':<32} | {'E':<8} | {'sigma_y':<8} | {'epsilon':<8} | {'sigma_init':<10}")
         print("-" * 80)
     for i, (v, label) in enumerate(zip(engine.candidate_vectors, candidate_labels)):
         if emit_stdout:
@@ -153,7 +153,7 @@ def run_deterministic_exclusion_demo(
 
     if emit_stdout:
         print("Phase Log:")
-        print(f"{'Step':<5} | {'Phase':<15} | {'λ(t)':<8} | {'Survivors':<10} | {'Excluded'}")
+        print(f"{'Step':<5} | {'Phase':<15} | {'lambda(t)':<10} | {'Survivors':<10} | {'Excluded'}")
         print("-" * 80)
         for entry in results["phase_log"]:
             excluded_indices = entry.get("excluded_indices", [])

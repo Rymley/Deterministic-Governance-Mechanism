@@ -59,6 +59,16 @@
       "elastic_modulus_mode": "multiplicative",
       "elastic_modulus_sigma": 0.25,
       "comment": "Maximum exclusion pressure + very tight binding for safety-critical systems"
+    },
+    "forgiving": {
+      "lambda_min": 0.30,
+      "lambda_max": 0.90,
+      "nucleation_threshold": 0.50,
+      "quenching_threshold": 0.85,
+      "total_steps": 10,
+      "elastic_modulus_mode": "multiplicative",
+      "elastic_modulus_sigma": 0.65,
+      "comment": "Tolerates ambiguity and creative drift"
     }
   }
 }

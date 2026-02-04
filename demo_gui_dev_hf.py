@@ -33,7 +33,23 @@ import json
 from pathlib import Path
 from collections import deque
 from typing import List, Dict, Optional, Any, Tuple
+import os
 
+# Hugging Face Spaces detection
+IS_SPACES = os.getenv("SPACE_ID") is not None
+
+if IS_SPACES:
+    # Disable some features that don't work well in Spaces
+    st.set_page_config(
+        page_title="Deterministic Exclusion Demo",
+        layout="wide",
+        initial_sidebar_state="expanded",
+        menu_items={
+            'Get Help': 'https://github.com/yourusername/verhash',
+            'Report a bug': "https://github.com/yourusername/verhash/issues",
+            'About': "Deterministic Governance Mechanism by Verhash LLC"
+        }
+    )
 # Import engine components
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
@@ -527,7 +543,34 @@ with tab2:
                 st.json(numbers_view)
 
 # ----------------------------------------------------------------------------
-# TAB 3: LLM Testing
+# TAB 3: LLM Testing (HF Spaces Enhanced)
+# ----------------------------------------------------------------------------
+def call_huggingface_inference(model, prompt, api_key, temperature=0.7, max_tokens=256):
+    """Call HuggingFace Inference API directly"""
+    import requests
+    
+    API_URL = f"https://api-inference.huggingface.co/models/{model}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "temperature": temperature,
+            "max_new_tokens": max_tokens,
+            "return_full_text": False
+        }
+    }
+    
+    response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+    response.raise_for_status()
+    
+    result = response.json()
+    if isinstance(result, list) and len(result) > 0:
+        return result[0].get("generated_text", "")
+    return result.get("generated_text", "")
+    
+# ----------------------------------------------------------------------------
+# TAB 3: LLM Testing (HF Spaces Enhanced)
 # ----------------------------------------------------------------------------
 with tab3:
     st.header("LLM Testing")
@@ -537,57 +580,115 @@ with tab3:
     Supports: OpenAI, Anthropic, Google Gemini, local models (Ollama, llama.cpp, vLLM), and any OpenAI-compatible API.
     """)
     
+    # HF Spaces detection
+    IS_SPACES = os.getenv("SPACE_ID") is not None
+    
+    # Show banner if in Spaces
+    if IS_SPACES:
+        st.info("🚀 **Running on Hugging Face Spaces** - Configure API keys in Settings → Secrets (for admins) or enter below")
+    
     # API Configuration
     st.subheader("1. LLM API Configuration")
     
     col_api1, col_api2 = st.columns(2)
     
     with col_api1:
+        # Add Hugging Face Inference API option for Spaces
+        provider_options = [
+            "Hugging Face Inference API (Free)",  # NEW - great for Spaces demos
+            "OpenAI", 
+            "Anthropic (Claude)", 
+            "Google (Gemini)", 
+            "Local (Ollama)", 
+            "Local (llama.cpp)", 
+            "Custom OpenAI-compatible"
+        ]
+        
+        # Default to HF Inference if in Spaces
+        default_index = 0 if IS_SPACES else 1
+        
         api_preset = st.selectbox(
             "Provider Preset",
-            options=["OpenAI", "Anthropic (Claude)", "Google (Gemini)", "Local (Ollama)", "Local (llama.cpp)", "Custom OpenAI-compatible"],
+            options=provider_options,
+            index=default_index,
             help="Select a preset or use custom for any OpenAI-compatible endpoint"
         )
         
         # Set defaults based on preset
-        if api_preset == "OpenAI":
-            default_base_url = "https://api.openai.com/v1"
-            default_model = "gpt-4.1-nano"
+        if api_preset == "Hugging Face Inference API (Free)":
+            default_base_url = "https://api-inference.huggingface.co/models"
+            default_model = "meta-llama/Llama-3.2-3B-Instruct"  # Free tier model
             needs_key = True
+            api_type = "huggingface"
+        elif api_preset == "OpenAI":
+            default_base_url = "https://api.openai.com/v1"
+            default_model = "gpt-4o-mini"  # Updated to current model
+            needs_key = True
+            api_type = "openai"
         elif api_preset == "Anthropic (Claude)":
             default_base_url = "https://api.anthropic.com/v1"
             default_model = "claude-3-5-sonnet-20241022"
             needs_key = True
+            api_type = "anthropic"
         elif api_preset == "Google (Gemini)":
             default_base_url = "https://generativelanguage.googleapis.com/v1beta"
             default_model = "gemini-2.0-flash-exp"
             needs_key = True
+            api_type = "google"
         elif api_preset == "Local (Ollama)":
             default_base_url = "http://localhost:11434/v1"
             default_model = "llama3.1"
             needs_key = False
+            api_type = "openai"
         elif api_preset == "Local (llama.cpp)":
             default_base_url = "http://localhost:8080/v1"
             default_model = "local-model"
             needs_key = False
+            api_type = "openai"
         else:
             default_base_url = "https://api.openai.com/v1"
-            default_model = "gpt-4.1-nano"
+            default_model = "gpt-4o-mini"
             needs_key = True
+            api_type = "openai"
+        
+        # Disable local options if in Spaces
+        if IS_SPACES and "Local" in api_preset:
+            st.warning("⚠️ Local models not available in Spaces. Use cloud APIs or HF Inference API.")
         
         api_base_url = st.text_input(
             "Base URL",
             value=default_base_url,
-            help="API endpoint base URL"
+            help="API endpoint base URL",
+            disabled=IS_SPACES and "Local" in api_preset
         )
     
     with col_api2:
-        api_key = st.text_input(
-            "API Key" + (" (optional for local)" if not needs_key else ""),
-            type="password",
-            help="Your API key (not required for local models)",
-            placeholder="sk-..." if needs_key else "not needed for local models"
-        )
+        # Check for API key in environment (HF Secrets)
+        env_key = None
+        if IS_SPACES:
+            if api_preset == "OpenAI":
+                env_key = os.getenv("OPENAI_API_KEY")
+            elif api_preset == "Anthropic (Claude)":
+                env_key = os.getenv("ANTHROPIC_API_KEY")
+            elif api_preset == "Google (Gemini)":
+                env_key = os.getenv("GOOGLE_API_KEY")
+            elif api_preset == "Hugging Face Inference API (Free)":
+                env_key = os.getenv("HF_TOKEN")
+        
+        if env_key:
+            st.success(f"✓ Using API key from Space secrets")
+            api_key = env_key
+            show_input = False
+        else:
+            show_input = True
+        
+        if show_input:
+            api_key = st.text_input(
+                "API Key" + (" (optional for local)" if not needs_key else ""),
+                type="password",
+                help="Your API key (not required for local models)",
+                placeholder="sk-..." if needs_key else "not needed for local models"
+            )
         
         model_name = st.text_input(
             "Model Name",
@@ -599,14 +700,40 @@ with tab3:
     with col_temp:
         temperature = st.slider("Temperature", 0.0, 2.0, 0.7, 0.1, help="Higher = more creative")
     with col_num:
-        num_responses = st.number_input("Number of Responses", min_value=1, max_value=10, value=3, help="Generate multiple responses for comparison")
-
+        # Limit responses in Spaces for performance
+        max_responses = 5 if IS_SPACES else 10
+        default_responses = 2 if IS_SPACES else 3
+        
+        num_responses = st.number_input(
+            "Number of Responses", 
+            min_value=1, 
+            max_value=max_responses, 
+            value=default_responses, 
+            help=f"Generate multiple responses for comparison{' (limited in Spaces)' if IS_SPACES else ''}"
+        )
+        
     col_timeout, col_retry = st.columns(2)
     with col_timeout:
-        request_timeout = st.number_input("Request Timeout (seconds)", min_value=5, max_value=600, value=60, step=5, help="Increase for slow or local models")
+        # Shorter timeout for Spaces
+        default_timeout = 30 if IS_SPACES else 60
+        request_timeout = st.number_input(
+            "Request Timeout (seconds)", 
+            min_value=5, 
+            max_value=600, 
+            value=default_timeout, 
+            step=5, 
+            help="Increase for slow or local models"
+        )
     with col_retry:
-        max_retries = st.number_input("Max Retries", min_value=0, max_value=5, value=2, step=1, help="Automatic retries on transient failures")
-    
+        max_retries = st.number_input(
+            "Max Retries", 
+            min_value=0, 
+            max_value=5, 
+            value=2, 
+            step=1, 
+            help="Automatic retries on transient failures"
+        )
+
     # Substrate Configuration
     st.subheader("2. Verified Substrate (Ground Truth)")
     st.markdown("Enter verified facts that define what is correct. One per line.")
