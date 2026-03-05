@@ -1,113 +1,101 @@
-# Research and Personal Use License
+# Non-Commercial Research & Personal Use License
 
 **Material-Field Governance Reference Implementation**  
 Copyright (c) 2026 Ryan S. Walters / Verhash LLC
 
 ## Grant of Rights
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, modify, and study the Software for **non-commercial purposes only**, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to **use, copy, modify, and redistribute** the Software for **non-commercial purposes only**, subject to the conditions below.
 
-### Permitted Uses
+This license is **source-available**. It is **not** an OSI-approved “open source” license.
+
+---
+
+## Permitted Uses (Non-Commercial)
 
 ✅ **Research and Academic Use**
 - Study the code and underlying algorithms
 - Modify for research experiments
-- Publish academic papers citing this work
 - Use in educational settings (courses, workshops)
+- Publish academic papers describing results obtained using the Software (with attribution)
 
 ✅ **Personal Use**
 - Run for personal learning and experimentation
-- Modify for individual projects
+- Modify for individual non-commercial projects
 - Share results and findings publicly
 
-✅ **Open Science**
+✅ **Non-Commercial Collaboration**
 - Fork and improve the implementation
-- Publish modified versions with attribution
-- Contribute bug reports and issues
+- Publish modified versions **only under this same license** and **only for non-commercial use**
+- Contribute bug reports, issues, and patches
 - Participate in technical discussions
 
-### Prohibited Uses
+---
 
-❌ **Commercial Deployment**
-- Integration into commercial products or services
-- Use in production systems serving customers
-- Deployment for profit or commercial advantage
-- Providing as a paid service (SaaS, API, etc.)
+## Prohibited Uses (Commercial Use Requires a Paid License)
+
+❌ **Commercial Use / Business Use**
+Without a separate commercial license, you may not:
+- Use the Software **by or for** any company, organization, or business entity (including internal R&D)
+- Integrate into commercial products or services
+- Use in production systems serving users or customers
+- Deploy for commercial advantage (whether or not money changes hands)
+- Provide as a hosted service (SaaS, API, managed offering), **paid or free**
+- Include the Software in paid consulting, contracting, or deliverables
+- Sell, sublicense, or bundle the Software with commercial offerings
 
 ❌ **Redistribution for Profit**
 - Selling copies or access to the Software
 - Bundling with commercial products
 - Sublicensing for commercial purposes
 
+---
+
 ## Conditions
 
 1. **Attribution Required**
-   - Retain this license notice in all copies
-   - Credit original author (Ryan S. Walters / Verhash LLC)
-   - Cite patent application when publishing research
+   - Retain this license notice in all copies or substantial portions of the Software
+   - Credit original author: **Ryan S. Walters / Verhash LLC**
 
-2. **Patent Notice**
-   - This software demonstrates concepts covered by pending patent applications
-   - Patent priority date: January 25, 2026
-   - Title: "Deterministic Material-Field Governance for Computational Systems"
-   - Applicant: Verhash LLC
+2. **Patent Notice (Informational)**
+   - This Software demonstrates concepts associated with pending patent applications
+   - Priority date: **January 25, 2026**
+   - Title: **"Deterministic Material-Field Governance for Computational Systems"**
+   - Applicant: **Verhash LLC**
+   - When publishing research results based on this Software, include this notice in a reasonable location (e.g., acknowledgments, appendix, artifact notes)
 
 3. **No Warranty**
-   - THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+   - THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED
    - Use at your own risk
    - No guarantee of fitness for any particular purpose
 
-## Commercial Licensing
-
-For commercial use, production deployment, or integration into commercial products:
-
-**Contact:** ryan@rswlabs.org  
-**Organization:** Verhash LLC  
-**Address:** 9343 Klusman Ave, Rancho Cucamonga, CA 91730
-
-We offer commercial licenses for:
-- Enterprise deployment
-- Integration into products
-- Production use in safety-critical systems
-- Custom development and support
-
-## Definitions
-
-**"Non-commercial"** means:
-- Not primarily intended for or directed toward commercial advantage
-- Not involving monetary compensation
-- Research, educational, or personal purposes
-
-**"Commercial"** means:
-- Used in a business or profit-making context
-- Deployed to serve paying customers
-- Integrated into products sold for profit
-- Any use generating revenue
-
-## Why This License?
-
-This software is a **reference implementation** of novel research. The goal is to:
-
-1. **Enable scrutiny** - Let researchers verify and challenge the claims
-2. **Accelerate research** - Provide working code to build upon
-3. **Support education** - Help students learn alternative AI approaches
-4. **Protect innovation** - Maintain rights for commercial deployment
-
-We want the research community to have full access while preserving the ability to support commercial development through proper licensing.
-
-## Questions?
-
-If you're unsure whether your use case is permitted:
-
-- **Academic research?** → Yes, permitted
-- **Personal learning project?** → Yes, permitted
-- **Startup product?** → No, requires commercial license
-- **Company internal R&D?** → Contact us to discuss
-- **Open source project?** → Yes, if non-commercial
-- **Publishing modifications?** → Yes, with attribution
+4. **No Trademark Rights**
+   - This license does not grant rights to use Verhash trademarks, names, or logos beyond attribution
 
 ---
 
-**Verhash LLC** supports development and research in deterministic systems.
+## Commercial Licensing
 
-Last updated: January 27, 2026
+For commercial use, production deployment, or integration into commercial products/services, a separate paid license is required.
+
+**Contact:** ryan@rverhash.com
+**Organization:** Verhash LLC  
+**Website:** https://verhash.com
+
+Commercial licenses may cover:
+- Enterprise deployment
+- Integration into products/services
+- Production use (including safety-critical systems)
+- Custom development and support
+
+---
+
+## Definitions
+
+**“Non-commercial”** means not primarily intended for or directed toward commercial advantage or monetary compensation.
+
+**“Commercial”** includes any use by or for a business/organization, any deployment serving users, any hosting as a service, any integration into a product/service, or any use that supports commercial advantage—whether or not revenue is generated.
+
+---
+
+Last updated: March 5, 2026
